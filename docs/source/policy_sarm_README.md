@@ -1,8 +1,8 @@
-## Paper
+## 论文（Paper）
 
 https://arxiv.org/abs/2509.25358
 
-## Citation
+## 引用（Citation）
 
 ```bibtex
 @article{chen2025sarm,

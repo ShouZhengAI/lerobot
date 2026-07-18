@@ -1,19 +1,19 @@
-## Research Paper
+## 研究论文
 
-GR00T N1 technical report (covers the GR00T N1.x family, including N1.7): https://arxiv.org/abs/2503.14734
+GR00T N1 技术报告（涵盖 GR00T N1.x 系列，包括 N1.7）：https://arxiv.org/abs/2503.14734
 
-GR00T N1.7 model card: https://huggingface.co/nvidia/GR00T-N1.7-3B
+GR00T N1.7 模型卡片：https://huggingface.co/nvidia/GR00T-N1.7-3B
 
-GR00T N1.5 research page (earlier version): https://research.nvidia.com/labs/gear/gr00t-n1_5/
+GR00T N1.5 研究页面（早期版本）：https://research.nvidia.com/labs/gear/gr00t-n1_5/
 
-> GR00T N1.5 support was removed from LeRobot; the last release supporting it is `lerobot==0.5.1`.
-> Current releases support GR00T N1.7 only.
+> LeRobot 中已移除 GR00T N1.5 的支持；最后一个支持它的版本是 `lerobot==0.5.1`。
+> 当前版本仅支持 GR00T N1.7。
 
-## Repository
+## 代码仓库
 
-Code: https://github.com/NVIDIA/Isaac-GR00T
+代码：https://github.com/NVIDIA/Isaac-GR00T
 
-## Citation
+## 引用
 
 ```bibtex
 @inproceedings{gr00tn1_2025,
@@ -27,83 +27,46 @@ Code: https://github.com/NVIDIA/Isaac-GR00T
 }
 ```
 
-## Additional Resources
+## 其他资源
 
-Blog: https://developer.nvidia.com/isaac/gr00t
+博客：https://developer.nvidia.com/isaac/gr00t
 
-Hugging Face Models:
+Hugging Face 模型：
 
-- GR00T N1.7: https://huggingface.co/nvidia/GR00T-N1.7-3B
-- GR00T N1.7 LIBERO checkpoints: https://huggingface.co/nvidia/GR00T-N1.7-LIBERO
+- GR00T N1.7：https://huggingface.co/nvidia/GR00T-N1.7-3B
+- GR00T N1.7 LIBERO 检查点：https://huggingface.co/nvidia/GR00T-N1.7-LIBERO
 
 <details>
-<summary><b>Original-vs-LeRobot parity test</b></summary>
+<summary><b>原始实现与 LeRobot 实现的一致性测试</b></summary>
 
-## Original-vs-LeRobot parity test
+## 原始实现与 LeRobot 实现的一致性测试
 
-`tests/policies/groot/test_groot_vs_original.py` verifies this LeRobot
-reimplementation of GR00T N1.7 (Qwen3-VL backbone + flow-matching action head)
-against NVIDIA's original `gr00t` package with two comparisons, each parametrized
-over every embodiment tag present in the checkpoint:
+`tests/policies/groot/test_groot_vs_original.py` 验证 LeRobot 对 GR00T N1.7（Qwen3-VL 主干网络 + flow-matching 动作头）的重新实现与 NVIDIA 原始 `gr00t` 包的一致性，通过两个对比维度进行验证，每个维度覆盖检查点中存在的主体标签：
 
-1. **Model parity** — given byte-identical pre-processed inputs and the same
-   flow-matching seed (recorded in each artifact), both implementations must produce
-   the **same raw model output** (`get_action(...)["action_pred"]`, the normalized
-   flow-matching prediction). Output shapes must match exactly; any action-horizon
-   or action-dim mismatch fails the test.
-2. **Preprocessor parity** — given the identical raw observations (per-camera
-   frames, state vectors, language instruction), LeRobot's own preprocessor pipeline
-   (real Qwen3-VL chat template / tokenizer / image packing + checkpoint-driven
-   state normalization, no mocks) must produce the **same collated model inputs**
-   (`input_ids`, `attention_mask`, `pixel_values`, `image_grid_thw`, `state`,
-   `embodiment_id`) as the original package's processor.
+1. **模型一致性** —— 给定字节级相同的预处理输入和相同的 flow-matching 种子（记录在每个工件中），两个实现必须产生**相同的原始模型输出**（`get_action(...)["action_pred"]`，即归一化后的 flow-matching 预测值）。输出形状必须完全一致；任何动作视界或动作维度不匹配都将导致测试失败。
+2. **预处理一致性** —— 给定完全相同的原始观察（每个相机的画面帧、状态向量、语言指令），LeRobot 自身的预处理管线（真实的 Qwen3-VL 对话模板/分词器/图像打包 + 基于检查点的状态归一化，不使用任何模拟组件）必须产生与原始包处理器相同的**整理后模型输入**（`input_ids`、`attention_mask`、`pixel_values`、`image_grid_thw`、`state`、`embodiment_id`）。
 
-### Why two environments
+### 为什么需要两个环境
 
-The original `gr00t` package pins `transformers==4.57.3` (Python 3.10); this
-integration requires `transformers>=5.x` (Qwen3-VL). Under 5.x, `PretrainedConfig`
-is itself a defaulted dataclass, so the original config dataclasses fail to import
-(`non-default argument follows default argument`). The two implementations therefore
-**cannot be imported in the same Python process**.
+原始的 `gr00t` 包固定使用 `transformers==4.57.3`（Python 3.10）；而本集成需要 `transformers>=5.x`（Qwen3-VL）。在 5.x 版本下，`PretrainedConfig` 本身是一个带有默认值的 dataclass，导致原始配置 dataclass 无法导入（`non-default argument follows default argument`）。因此，两个实现**无法在同一个 Python 进程中导入**。
 
-So the test uses a **producer / consumer** split across two venvs:
+所以测试采用**生产者/消费者**模式，在两个虚拟环境之间进行：
 
-1. **Producer** — `tests/policies/groot/utils/dump_original_n1_7.py`, run in the _original_
-   gr00t venv. For each embodiment it builds dummy inputs generically from the
-   checkpoint metadata (state dims from `statistics.json`; camera/language keys from
-   the processor modality configs), runs the original model, and saves to one `.npz`
-   per tag: the raw observations (`raw::` keys), the exact collated inputs
-   (`in::` keys), the seed, and the raw `action_pred`.
-2. **Consumer** — the pytest above, run in the _LeRobot_ venv. It discovers every
-   `.npz`; the model-parity case replays the byte-identical collated inputs through
-   the LeRobot model with the recorded seed and asserts the outputs match, and the
-   preprocessor-parity case replays the raw observations through LeRobot's full
-   preprocessor pipeline and asserts the collated tensors match.
+1. **生产者** —— `tests/policies/groot/utils/dump_original_n1_7.py`，在_原始_ gr00t 虚拟环境中运行。对于每个主体，它根据检查点元数据（状态维度来自 `statistics.json`；相机/语言键来自处理器模态配置）泛化地构建虚拟输入，运行原始模型，并为每个标签保存为一个 `.npz` 文件：原始观察（`raw::` 键）、精确的整理后输入（`in::` 键）、种子以及原始 `action_pred`。
+2. **消费者** —— 上述 pytest，在 _LeRobot_ 虚拟环境中运行。它发现所有 `.npz` 文件；模型一致性测试将字节级相同的整理后输入通过 LeRobot 模型以记录的种子重新运行，并断言输出匹配；预处理一致性测试将原始观察通过 LeRobot 的完整预处理管线运行，并断言整理后的张量匹配。
 
-> Artifacts generated by older versions of the dump script contain no `raw::`
-> fields; the preprocessor-parity case then **skips** with a regeneration hint.
-> Re-run the producer to refresh them.
+> 由旧版本转存脚本生成的工件不包含 `raw::` 字段；此时预处理一致性测试将**跳过**并提示重新生成。重新运行生产者以刷新这些工件。
 
-### Fairness controls
+### 公平性控制
 
-- **Same pre-processed inputs (model parity)** — the original processor's `input_ids`,
-  `pixel_values`, `image_grid_thw`, `attention_mask`, `state`, `embodiment_id` are
-  fed verbatim to the LeRobot model (no re-tokenization / re-normalization), so the
-  model comparison isolates the model. LeRobot's own tokenization / image packing is
-  covered separately by the preprocessor-parity case, which compares its output
-  against those same collated tensors from identical raw observations.
-- **Same precision + attention kernel** — both sides run **fp32 + SDPA**. The
-  original defaults to `use_flash_attention=True` (flash_attention_2 + bf16); the
-  producer forces SDPA + fp32. (With the defaults the gap is ~3e-2 — pure
-  kernel/rounding noise, not an implementation difference.)
-- **Same flow-matching seed** — fixed right before sampling on both sides; the
-  producer records it in each artifact (`--seed`, default 42) and the consumer
-  replays the recorded value.
+- **相同的预处理输入（模型一致性）** —— 原始处理器的 `input_ids`、`pixel_values`、`image_grid_thw`、`attention_mask`、`state`、`embodiment_id` 被逐字输入 LeRobot 模型（不重新分词/重新归一化），因此模型比较可以隔离模型本身。LeRobot 自己的分词/图像打包由预处理一致性测试单独覆盖，该测试将其输出与来自相同原始观察的那些整理后张量进行比较。
+- **相同的精度 + 注意力核** —— 两侧都运行 **fp32 + SDPA**。原始版本默认使用 `use_flash_attention=True`（flash_attention_2 + bf16）；生产者强制使用 SDPA + fp32。（使用默认设置时差距约为 3e-2 —— 这纯粹是核函数/舍入噪声，而非实现差异。）
+- **相同的 flow-matching 种子** —— 在两侧采样前固定；生产者将其记录在每个工件中（`--seed`，默认为 42），消费者回放记录的值。
 
-### How to run
+### 如何运行
 
 ```bash
-# Resolve a local checkpoint (GR00T-N1.7-LIBERO / libero_10)
+# 解析本地检查点（GR00T-N1.7-LIBERO / libero_10）
 CKPT=$(python - <<'PY'
 import os
 from huggingface_hub import snapshot_download
@@ -112,27 +75,25 @@ print(os.path.join(snapshot_download("nvidia/GR00T-N1.7-LIBERO",
 PY
 )
 
-# 1) Produce the original-side artifacts for all embodiments (original gr00t venv, CUDA)
+# 1) 为所有主体生成原始端工件（原始 gr00t 虚拟环境，CUDA）
 CUDA_VISIBLE_DEVICES=0 /path/to/Isaac-GR00T/.venv-original/bin/python \
     tests/policies/groot/utils/dump_original_n1_7.py \
     --ckpt "$CKPT" --out-dir tests/policies/groot/artifacts --device cuda --seed 42
 
-# 2) Run the parity test (LeRobot venv) — one parametrized case per embodiment
+# 2) 运行一致性测试（LeRobot 虚拟环境）——每个主体一个参数化用例
 CUDA_VISIBLE_DEVICES=0 GROOT_PARITY_DEVICE=cuda \
     uv run pytest tests/policies/groot/test_groot_vs_original.py -v -s
 ```
 
-The `.npz` artifacts are local-only (gitignored, ~6–10 MB each) and are regenerated by
-the producer; they are never committed. The tests **skip** (do not fail) on CI or
-when the checkpoint / artifacts are absent.
+`.npz` 工件仅在本地存在（已加入 gitignore，每个大约 6–10 MB），由生产者重新生成；它们永远不会提交。在 CI 上或当检查点/工件不存在时，测试会**跳过**（不会失败）。
 
-#### Env knobs (all optional)
+#### 环境变量（均为可选）
 
-| Var                                       | Default                          | Purpose                               |
-| ----------------------------------------- | -------------------------------- | ------------------------------------- |
-| `GROOT_N1_7_PARITY_DIR`                   | `tests/policies/groot/artifacts` | directory of per-tag `.npz` artifacts |
-| `GROOT_N1_7_LIBERO_CKPT`                  | auto (HF cache)                  | override checkpoint dir               |
-| `GROOT_PARITY_DEVICE`                     | `cuda` if available              | `cpu` or `cuda`                       |
-| `GROOT_PARITY_ATOL` / `GROOT_PARITY_RTOL` | `1e-3`                           | comparison tolerance                  |
+| 变量                                        | 默认值                            | 用途                       |
+| ------------------------------------------ | -------------------------------- | -------------------------- |
+| `GROOT_N1_7_PARITY_DIR`                    | `tests/policies/groot/artifacts` | 每个标签的 `.npz` 工件目录 |
+| `GROOT_N1_7_LIBERO_CKPT`                   | 自动（HF 缓存）                   | 覆盖检查点目录              |
+| `GROOT_PARITY_DEVICE`                      | `cuda`（如果可用）                 | `cpu` 或 `cuda`            |
+| `GROOT_PARITY_ATOL` / `GROOT_PARITY_RTOL` | `1e-3`                           | 比较容差                    |
 
 </details>

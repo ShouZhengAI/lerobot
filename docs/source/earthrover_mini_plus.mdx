@@ -6,21 +6,21 @@
   width="70%"
 />
 
-The EarthRover Mini Plus is a fully open source mobile robot that connects through the cloud using the Frodobots SDK. This lets you control the robot and record datasets for training AI models.
+EarthRover Mini Plus 是一款完全开源的移动机器人，通过 Frodobots SDK 连接云端。这让你可以控制机器人并录制数据集，用于训练 AI 模型。
 
-## What You Need
+## 你需要准备的
 
-### Hardware
+### 硬件
 
-- EarthRover Mini robot
-- Computer with Python 3.12 or newer
-- Internet connection
+- EarthRover Mini 机器人
+- 装有 Python 3.12 或更新版本的电脑
+- 互联网连接
 
-### Setting Up the Frodobots SDK
+### 设置 Frodobots SDK
 
-The robot needs the [Frodobots SDK](https://github.com/frodobots-org/earth-rovers-sdk) running on your computer. Here's how:
+机器人需要 [Frodobots SDK](https://github.com/frodobots-org/earth-rovers-sdk) 在你的电脑上运行。步骤如下：
 
-1. Download and install the SDK:
+1. 下载并安装 SDK：
 
 ```bash
 git clone https://github.com/frodobots-org/earth-rovers-sdk.git
@@ -28,104 +28,104 @@ cd earth-rovers-sdk
 pip install -r requirements.txt
 ```
 
-2. Save Credentials:
+2. 保存凭证：
 
-Write your .env variables with the SDK API key and bot name provided by the Frodobots team.
+将 .env 变量写入，包含 Frodobots 团队提供的 SDK API 密钥和机器人名称。
 
 ```bash
 SDK_API_TOKEN=your_sdk_api_token_here
 BOT_SLUG=your_bot_slug_here
 CHROME_EXECUTABLE_PATH=/path/to/chrome_or_chromium
-# Default value is MAP_ZOOM_LEVEL=18 https://wiki.openstreetmap.org/wiki/Zoom_levels
+# 默认为 MAP_ZOOM_LEVEL=18 https://wiki.openstreetmap.org/wiki/Zoom_levels
 MAP_ZOOM_LEVEL=18
 MISSION_SLUG=your_mission_slug_here
-# Image quality between 0.1 and 1.0 (default: 0.8)
-# Recommended: 0.8 for better performance
+# 图像质量，范围 0.1 到 1.0（默认：0.8）
+# 建议：0.8 以获得更好的性能
 IMAGE_QUALITY=0.8
-# Image format: jpeg, png or webp (default: png)
-# Recommended: jpeg for better performance and lower bandwidth usage
+# 图像格式：jpeg、png 或 webp（默认：png）
+# 建议：jpeg 以获得更好的性能和更低的带宽使用
 IMAGE_FORMAT=jpeg
 ```
 
-3. Start the SDK:
+3. 启动 SDK：
 
 ```bash
 hypercorn main:app --reload
 ```
 
-4. Open your web browser and go to `http://localhost:8000`, then click "Join"
+4. 打开网页浏览器访问 `http://localhost:8000`，然后点击"加入"
 
-The SDK gives you:
+SDK 提供以下功能：
 
-- Live video from front and rear cameras
+- 前置和后置摄像头的实时视频
 
 > [!IMPORTANT]
-> The SDK must be running before you can use the robot.
+> 必须先运行 SDK，然后才能使用机器人。
 
-## Install LeRobot
+## 安装 LeRobot
 
-Follow our [Installation Guide](./installation) to install LeRobot.
+请按照我们的[安装指南](./installation)安装 LeRobot。
 
-In addition to the base installation, install the EarthRover Mini with hardware dependencies:
+在基础安装之外，还需安装带硬件依赖的 EarthRover Mini：
 
 ```bash
 pip install -e ".[hardware]"
 ```
 
-## How It Works
+## 工作原理
 
-The robot uses the internet to communicate:
+机器人通过互联网进行通信：
 
-- **Movement commands**: Sent through the SDK
-- **Camera video**: Received from the SDK
-- **Robot info**: Battery, location, speed from the SDK
+- **移动指令**：通过 SDK 发送
+- **摄像头视频**：从 SDK 接收
+- **机器人信息**：电量、位置、速度等来自 SDK
 
-You don't need to plug anything in - it all works through the SDK.
+你无需连接任何线缆——一切通过 SDK 工作。
 
-## Calibration
+## 校准
 
-No calibration needed! The robot is ready to use as soon as the SDK is running.
+无需校准！只要 SDK 在运行，机器人即可直接使用。
 
-## Controlling the Robot
+## 控制机器人
 
-You control the robot using your keyboard - just like playing a video game with WASD keys.
+你可以使用键盘控制机器人——就像用 WASD 键玩电子游戏一样。
 
-### Keyboard Controls
+### 键盘控制
 
-| Key | Action                           |
-| --- | -------------------------------- |
-| W   | Move forward                     |
-| S   | Move backward                    |
-| A   | Turn left (with forward motion)  |
-| D   | Turn right (with forward motion) |
-| Q   | Rotate left in place             |
-| E   | Rotate right in place            |
-| X   | Stop all movement                |
-| +/= | Increase speed                   |
-| -   | Decrease speed                   |
-| ESC | Disconnect                       |
+| 键位 | 动作 |
+| --- | --- |
+| W | 向前移动 |
+| S | 向后移动 |
+| A | 左转（同时向前移动） |
+| D | 右转（同时向前移动） |
+| Q | 原地向左旋转 |
+| E | 原地向右旋转 |
+| X | 停止所有移动 |
+| +/= | 增加速度 |
+| - | 降低速度 |
+| ESC | 断开连接 |
 
-### Speed Settings
+### 速度设置
 
-You can adjust how fast the robot moves:
+你可以调节机器人的移动速度：
 
-- **Forward/backward speed**: Default is full speed (1.0)
-- **Turning speed**: Default is full speed (1.0)
-- **Speed changes**: Use +/- keys to adjust by 0.1 each time
+- **前进/后退速度**：默认全速（1.0）
+- **转弯速度**：默认全速（1.0）
+- **速度调整**：使用 +/- 键，每次调整 0.1
 
-### Try It Out
+### 试试看
 
-Test driving the robot before recording data:
+在录制数据前先试驾机器人：
 
 ```python
 from lerobot.robots.earthrover_mini_plus import EarthRoverMiniPlus, EarthRoverMiniPlusConfig
 from lerobot.teleoperators.keyboard import KeyboardRoverTeleop, KeyboardRoverTeleopConfig
 
-# Initialize robot
+# 初始化机器人
 robot_config = EarthRoverMiniPlusConfig()
 robot = EarthRoverMiniPlus(robot_config)
 
-# Initialize teleoperator
+# 初始化遥操作器
 teleop_config = KeyboardRoverTeleopConfig(
     linear_speed=1.0,
     angular_speed=1.0,
@@ -133,11 +133,11 @@ teleop_config = KeyboardRoverTeleopConfig(
 )
 teleop = KeyboardRoverTeleop(teleop_config)
 
-# Connect
+# 连接
 robot.connect()
 teleop.connect()
 
-# Teleoperate (use keyboard controls)
+# 遥操作（使用键盘控制）
 try:
     while True:
         action = teleop.get_action()
@@ -150,89 +150,89 @@ finally:
 ```
 
 > [!TIP]
-> If you're using a Mac, you might need to give Terminal permission to access your keyboard for teleoperation. Go to System Preferences > Security & Privacy > Input Monitoring and check the box for Terminal.
+> 如果你使用的是 Mac，可能需要授予终端键盘访问权限才能进行遥操作。前往系统设置 > 安全性与隐私 > 输入监视，勾选终端应用。
 
-## Recording Data
+## 录制数据
 
-Once you can drive the robot well, you can start recording data to train AI models. The system records:
+一旦你能熟练驾驶机器人，就可以开始录制数据来训练 AI 模型。系统会记录：
 
-- **What you do**: How you move the robot (forward, backward, turning)
-- **What the robot sees**:
-  - Videos from both cameras
-  - Robot speed and direction
-  - Battery level and location
-  - GPS position and signal
-  - Other sensor data
-- **When it happened**: Timestamps for everything
+- **你的操作**：如何移动机器人（前进、后退、转弯）
+- **机器人看到的内容**：
+  - 两个摄像头的视频
+  - 机器人速度和方向
+  - 电量和位置
+  - GPS 定位和信号
+  - 其他传感器数据
+- **发生时间**：所有数据的时间戳
 
-### Setting Up Hugging Face
+### 设置 Hugging Face
 
-We use Hugging Face to store your data online. First, log in with your token from [Hugging Face settings](https://huggingface.co/settings/tokens):
+我们使用 Hugging Face 在线存储你的数据。首先，使用 [Hugging Face 设置](https://huggingface.co/settings/tokens)页面中的令牌登录：
 
 ```bash
 hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
 ```
 
-Store your Hugging Face username:
+保存你的 Hugging Face 用户名：
 
 ```bash
 HF_USER=$(hf auth whoami | awk -F': *' 'NR==1 {print $2}')
 echo $HF_USER
 ```
 
-### Start Recording
+### 开始录制
 
-Use the standard recording command:
+使用标准的录制命令：
 
 ```bash
 lerobot-record \
     --robot.type=earthrover_mini_plus \
     --teleop.type=keyboard_rover \
-    --dataset.repo_id=your_username/dataset_name \
+    --dataset.repo_id=你的用户名/数据集名称 \
     --dataset.num_episodes=2 \
     --dataset.fps=10 \
-    --dataset.single_task="Navigate around obstacles" \
+    --dataset.single_task="绕过障碍物导航" \
     --dataset.streaming_encoding=true \
     --dataset.encoder_threads=2 \
     # --dataset.rgb_encoder.vcodec=auto \
     --display_data=true
 ```
 
-Replace `your_username/dataset_name` with your Hugging Face username and a name for your dataset.
+将 `你的用户名/数据集名称` 替换为你的 Hugging Face 用户名和数据集名称。
 
-### What Gets Saved
+### 保存的内容
 
-Your dataset includes:
+你的数据集包含以下内容：
 
-**Your Actions (2 features)**:
+**你的动作（2 个特征）**：
 
-- `linear_velocity`: How much you moved forward/backward
-- `angular_velocity`: How much you turned left/right
+- `linear_velocity`：你向前/向后移动了多少
+- `angular_velocity`：你向左/向右转了多少
 
-**Robot Observations (24 features)**:
+**机器人观测值（24 个特征）**：
 
-- Front camera video
-- Rear camera video
-- Current speed
-- Battery level
-- Orientation
-- GPS (latitude, longitude, signal strength)
-- Network signal strength
-- Vibration level
-- Lamp state (on/off)
-- Accelerometer (x, y, z)
-- Gyroscope (x, y, z)
-- Magnetometer (x, y, z)
-- Wheel RPMs (4 wheels)
+- 前置摄像头视频
+- 后置摄像头视频
+- 当前速度
+- 电量
+- 朝向
+- GPS（经度、纬度、信号强度）
+- 网络信号强度
+- 振动等级
+- 灯光状态（开/关）
+- 加速度计（x、y、z）
+- 陀螺仪（x、y、z）
+- 磁力计（x、y、z）
+- 车轮转速（4 个轮子）
 
-### Where Your Data Goes
+### 数据存储位置
 
-On your computer: `~/.cache/huggingface/lerobot/{repo-id}`
+在你的电脑上：`~/.cache/huggingface/lerobot/{repo-id}`
 
-After recording, your data automatically uploads to your Hugging Face page:
+录制完成后，数据会自动上传到你的 Hugging Face 页面：
 
 ```bash
 echo https://huggingface.co/datasets/${HF_USER}/earthrover-navigation
 ```
 
-Your dataset will be tagged with `LeRobot` for community discovery.
+你的数据集将被标记为 `LeRobot`，便于社区发现。

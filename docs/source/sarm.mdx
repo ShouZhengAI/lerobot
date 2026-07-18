@@ -1,129 +1,129 @@
-# SARM: Stage-Aware Reward Modeling
+# SARM：阶段感知奖励建模
 
-SARM (Stage-Aware Reward Modeling) is a video-based reward modeling framework for long-horizon robot manipulation tasks. This guide covers how to train SARM reward models and optionally use them with Reward-Aligned Behavior Cloning (RA-BC).
+SARM（Stage-Aware Reward Modeling，阶段感知奖励建模）是一种基于视频的奖励建模框架，适用于长程机器人操作任务。本指南介绍如何训练 SARM 奖励模型，以及可选地将其与基于奖励的行为克隆（RA-BC，Reward-Aligned Behavior Cloning）结合使用。
 
-**Paper**: [SARM: Stage-Aware Reward Modeling for Long Horizon Robot Manipulation](https://arxiv.org/abs/2509.25358)
+**论文**: [SARM: Stage-Aware Reward Modeling for Long Horizon Robot Manipulation](https://arxiv.org/abs/2509.25358)
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/lerobot-sarm.png"
-  alt="An overview of SARM"
+  alt="SARM 概览"
   width="80%"
 />
 
-## Why Reward Models?
+## 为什么需要奖励模型？
 
-Standard behavior cloning treats all demonstration frames equally, but real-world robot datasets are messy. They contain hesitations, corrections, and variable-quality trajectories. Reward models solve this by learning a generalizable notion of **task progress** from demonstrations: given video frames and a task description, they predict how close the robot is to completing the task (0→1). This learned "progress signal" can be used in multiple ways, two promising applications are: (1) **weighted imitation learning** (RA-BC), where high-progress frames receive more weight during policy training, and (2) **reinforcement learning**, where the reward model provides dense rewards for online or offline policy improvement.
+标准的行为克隆（behavior cloning）将所有演示帧视为同等重要，但实际机器人数据集往往是杂乱无章的，包含犹豫、修正以及质量参差不齐的轨迹。奖励模型通过从演示中学习一种可泛化的**任务进度**概念来解决这一问题：给定视频帧和任务描述，模型预测机器人离完成任务还有多远（0→1）。这种学习到的"进度信号"可以多种方式使用，两个有前景的应用是：（1）**加权模仿学习**（RA-BC），即策略训练时高进度帧获得更高权重；（2）**强化学习**，即奖励模型为在线或离线策略改进提供密集奖励。
 
-## Overview
+## 概览
 
-SARM has following features:
+SARM 具有以下特点：
 
-1. **Stage-aware architecture**: Jointly predicts the high-level task stage and fine-grained progress within each stage
-2. **Subtask annotations**: Uses natural language subtask annotations to derive consistent progress labels
-3. **Temporal proportions**: Computes dataset-level priors (α̅\_k) for each subtask to normalize progress across variable-length demonstrations
+1. **阶段感知架构**：联合预测高层级任务阶段和每个阶段内的细粒度进度
+2. **子任务标注**：使用自然语言子任务标注来推导一致的进度标签
+3. **时间比例**：为每个子任务计算数据集级别的先验（α̅\_k），以在不同长度的演示之间标准化进度
 
-SARM trains on a compact **stage+tau** target for each frame:
+SARM 为每帧训练一个紧凑的 **stage+tau** 目标：
 
-- **stage**: integer stage index `k ∈ {0, ..., K-1}`
-- **τ (tau)**: within-stage progress `τ ∈ [0, 1]`
-- **target encoding**: `y = k + τ` (this is what the dataset processor produces)
+- **stage**：整数阶段索引 `k ∈ {0, ..., K-1}`
+- **τ (tau)**：阶段内进度 `τ ∈ [0, 1]`
+- **目标编码**：`y = k + τ`（这是数据集处理器生成的内容）
 
-At inference time (and in downstream RA-BC), SARM converts the raw `k + τ` value into a **normalized progress** in `[0, 1]` using dataset-level **temporal proportions** `α̅_k` (stored in `meta/temporal_proportions_*.json`).
+在推理时（以及下游 RA-BC 中），SARM 使用数据集级别的**时间比例** `α̅_k`（存储在 `meta/temporal_proportions_*.json` 中）将原始 `k + τ` 值转换为 `[0, 1]` 范围内的**标准化进度**。
 
-This matches **Formula (2)** from the paper:
+这与论文中的**公式 (2)** 一致：
 
 ```
 progress_t = P_{k-1} + α̅_k × τ_t
 ```
 
-Where:
+其中：
 
-- `τ_t = (t - s_k) / (e_k - s_k)` is within-subtask normalized time
-- `P_{k-1}` is cumulative prior (sum of previous subtask proportions)
-- `α̅_k` is the temporal proportion for subtask k
+- `τ_t = (t - s_k) / (e_k - s_k)` 是子任务内标准化时间
+- `P_{k-1}` 是累积先验（前几个子任务比例之和）
+- `α̅_k` 是子任务 k 的时间比例
 
-This ensures identical task states map to consistent progress values, even across demonstrations of different lengths.
+这确保了相同的任务状态映射到一致的进度值，即使是在不同长度的演示之间也是如此。
 
-## Inputs and Targets (What the new code expects)
+## 输入与目标（新代码的预期形式）
 
-SARM is trained through its processor (`src/lerobot/rewards/sarm/processor_sarm.py`), which:
+SARM 通过其处理器（`src/lerobot/rewards/sarm/processor_sarm.py`）进行训练，该处理器：
 
-- **Encodes** images and task text with CLIP (ViT-B/32) into `video_features` and `text_features`
-- **Pads/truncates** robot state into `state_features` (up to `max_state_dim`)
-- **Builds targets** as `sparse_targets` (and `dense_targets` in `dense_only`/`dual`) using the stage+tau encoding `y = k + τ`
-- **Masks rewind frames** using a per-sample `lengths` tensor (rewind is a training-time augmentation)
+- **编码**：使用 CLIP（ViT-B/32）将图像和任务文本编码为 `video_features` 和 `text_features`
+- **填充/截断**：将机器人状态填充或截断为 `state_features`（最多 `max_state_dim`）
+- **构建目标**：使用 stage+tau 编码 `y = k + τ` 构建 `sparse_targets`（以及 `dense_only`/`dual` 模式下的 `dense_targets`）
+- **掩码回退帧**：使用每个样本的 `lengths` 张量进行掩码（回退是一种训练时数据增强）
 
-At minimum, each training sample needs:
+每个训练样本至少需要：
 
-- `task` (string): task description
-- `policy.image_key` images and `policy.state_key` states from the dataset
+- `task`（字符串）：任务描述
+- 数据集中 `policy.image_key` 对应的图像和 `policy.state_key` 对应的状态
 
 ---
 
-## Annotation Modes
+## 标注模式
 
-You can choose from **3 annotation modes** that determine how progress labels are computed:
+你可以选择 **3 种标注模式**，它们决定如何计算进度标签：
 
-| Mode           | Annotations Required | Heads                        | Use Case                                                     |
-| -------------- | -------------------- | ---------------------------- | ------------------------------------------------------------ |
-| `single_stage` | None                 | Sparse only                  | Simple tasks, quick experiments, no VLM needed               |
-| `dense_only`   | Dense (VLM)          | Dual (sparse auto-generated) | Detailed subtask tracking without defining high-level stages |
-| `dual`         | Sparse + Dense (VLM) | Dual                         | Full SARM paper setup with both granularities                |
+| 模式           | 所需标注          | 输出头                          | 使用场景                                                |
+| -------------- | ----------------- | ------------------------------- | ------------------------------------------------------- |
+| `single_stage` | 无                | 仅稀疏头                        | 简单任务、快速实验，无需 VLM                            |
+| `dense_only`   | 密集标注 (VLM)    | 双头（稀疏头自动生成）          | 详细子任务追踪，无需定义高层级阶段                      |
+| `dual`         | 稀疏 + 密集标注（VLM） | 双头                            | 完整 SARM 论文设置，兼具两种粒度                        |
 
-### Mode Details
+### 模式详情
 
 <hfoptions id="mode_explanation">
 <hfoption id="single_stage">
 
-**No annotations required.** The entire episode is treated as a single stage called `"task"`, and progress is linear from 0 to 1 over the episode duration.
+**无需任何标注。** 整个回合被视为单个名为 `"task"` 的阶段，进度在回合持续时间内从 0 线性增加到 1。
 
-- **Sparse head**: 1 stage ("task"), linear progress
-- **Dense head**: Not used
-- **Best for**: Simple tasks, quick experiments, or when VLM annotation is not available
+- **稀疏头**：1 个阶段（"task"），线性进度
+- **密集头**：不使用
+- **最佳适用**：简单任务、快速实验，或无法使用 VLM 标注时
 
-## Set Up Your Environment
+## 设置开发环境
 
-1. Install LeRobot by following our [Installation Guide](./installation).
-2. Install SARM dependencies by running:
+1. 按照我们的[安装指南](./installation)安装 LeRobot。
+2. 运行以下命令安装 SARM 依赖：
 
 ```bash
 pip install -e ".[sarm]"
 ```
 
-Workflow:
+工作流程：
 
 ```
-1. Train SARM → 2. Visualize predictions → 3. (Optional) Train policy with RA-BC
+1. 训练 SARM → 2. 可视化预测 → 3.（可选）使用 RA-BC 训练策略
 ```
 
 </hfoption>
 <hfoption id="dense_only">
 
-**Only dense (fine-grained) annotations from a VLM.** The sparse head automatically uses a single `"task"` stage covering the full episode, while the dense head learns detailed subtask progression.
+**仅使用 VLM 提供的密集（细粒度）标注。** 稀疏头自动使用覆盖整个回合的单个 `"task"` 阶段，而密集头学习详细的子任务进展。
 
-- **Sparse head**: 1 stage ("task"), linear progress (auto-generated)
-- **Dense head**: Multiple fine-grained stages from VLM annotations
-- **Best for**: When you want detailed subtask tracking but don't need to define high-level stages
+- **稀疏头**：1 个阶段（"task"），线性进度（自动生成）
+- **密集头**：来自 VLM 标注的多个细粒度阶段
+- **最佳适用**：需要详细的子任务追踪，但无需定义高层级阶段时
 
-Workflow:
+工作流程：
 
 ```
-1. Annotate (dense) → 2. Verify → 3. Train SARM → 4. Visualize → 5. (Optional) Train policy with RA-BC
+1. 标注（密集）→ 2. 验证 → 3. 训练 SARM → 4. 可视化 → 5.（可选）使用 RA-BC 训练策略
 ```
 
 </hfoption>
 <hfoption id="dual">
 
-**Both sparse and dense annotations from VLM.** Full dual-head mode as described in the SARM paper, with both high-level (sparse) and fine-grained (dense) stage predictions.
+**使用 VLM 提供稀疏和密集两种标注。** 如 SARM 论文中描述的完整双头模式，同时提供高层级（稀疏）和细粒度（密集）阶段预测。
 
-- **Sparse head**: High-level stages from VLM annotations
-- **Dense head**: Fine-grained stages from VLM annotations
-- **Best for**: Complex multi-stage tasks where both granularities are useful
+- **稀疏头**：来自 VLM 标注的高层级阶段
+- **密集头**：来自 VLM 标注的细粒度阶段
+- **最佳适用**：两种粒度都有用的复杂多阶段任务
 
-Workflow:
+工作流程：
 
 ```
-1. Annotate (sparse+dense) → 2. Verify → 3. Train SARM → 4. Visualize → 5. (Optional) Train policy with RA-BC
+1. 标注（稀疏+密集）→ 2. 验证 → 3. 训练 SARM → 4. 可视化 → 5.（可选）使用 RA-BC 训练策略
 ```
 
 </hfoption>
@@ -131,17 +131,17 @@ Workflow:
 
 ---
 
-## Step 1: Subtask Annotation
+## 步骤 1：子任务标注
 
 <hfoptions id="annotation_mode">
 <hfoption id="single_stage">
 
-**No annotation required!** Skip this step entirely. The model will use the episode's task description and compute linear progress automatically.
+**无需标注！** 完全跳过此步骤。模型将使用回合的任务描述并自动计算线性进度。
 
 </hfoption>
 <hfoption id="dense_only">
 
-Generate **dense (fine-grained) annotations only** using a VLM. The sparse stage will be auto-generated.
+使用 VLM 生成**仅密集（细粒度）标注**。稀疏阶段将自动生成。
 
 ```bash
 python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
@@ -153,18 +153,18 @@ python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
   --push-to-hub
 ```
 
-**What gets saved:**
+**保存的内容：**
 
-- `meta/temporal_proportions_sparse.json` - Auto-generated sparse proportions (`{"task": 1.0}`)
-- `meta/temporal_proportions_dense.json` - Dense temporal proportions
-- Per-episode columns in `episodes/*.parquet`:
-  - `dense_subtask_names`, `dense_subtask_start_frames`, `dense_subtask_end_frames`
-  - (also time-based columns: `dense_subtask_start_times`, `dense_subtask_end_times`)
+- `meta/temporal_proportions_sparse.json` - 自动生成的稀疏比例（`{"task": 1.0}`）
+- `meta/temporal_proportions_dense.json` - 密集时间比例
+- `episodes/*.parquet` 中每个回合的列：
+  - `dense_subtask_names`、`dense_subtask_start_frames`、`dense_subtask_end_frames`
+  - （以及基于时间的列：`dense_subtask_start_times`、`dense_subtask_end_times`）
 
 </hfoption>
 <hfoption id="dual">
 
-Generate **both sparse (high-level) and dense (fine-grained) annotations** using a VLM.
+使用 VLM 生成**稀疏（高层级）和密集（细粒度）两种标注**。
 
 ```bash
 python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
@@ -176,48 +176,48 @@ python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
   --push-to-hub
 ```
 
-**What gets saved:**
+**保存的内容：**
 
-- `meta/temporal_proportions_sparse.json` - Sparse temporal proportions
-- `meta/temporal_proportions_dense.json` - Dense temporal proportions
-- Per-episode columns in `episodes/*.parquet`:
-  - `sparse_subtask_names`, `sparse_subtask_start_frames`, `sparse_subtask_end_frames`
-  - `dense_subtask_names`, `dense_subtask_start_frames`, `dense_subtask_end_frames`
-  - (also time-based columns: `*_subtask_start_times`, `*_subtask_end_times`)
+- `meta/temporal_proportions_sparse.json` - 稀疏时间比例
+- `meta/temporal_proportions_dense.json` - 密集时间比例
+- `episodes/*.parquet` 中每个回合的列：
+  - `sparse_subtask_names`、`sparse_subtask_start_frames`、`sparse_subtask_end_frames`
+  - `dense_subtask_names`、`dense_subtask_start_frames`、`dense_subtask_end_frames`
+  - （以及基于时间的列：`*_subtask_start_times`、`*_subtask_end_times`）
 
 </hfoption>
 </hfoptions>
 
-### Annotation Arguments
+### 标注参数
 
-| Argument               | Description                                                                     |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `--repo-id`            | HuggingFace dataset repository ID                                               |
-| `--sparse-subtasks`    | Comma-separated list of high-level subtask names                                |
-| `--dense-subtasks`     | Comma-separated list of fine-grained subtask names                              |
-| `--dense-only`         | Generate only dense annotations (auto-creates sparse "task" stage)              |
-| `--video-key`          | Camera/video key to use (e.g., `observation.images.top`)                        |
-| `--num-workers`        | Number of parallel GPU workers (default: 1)                                     |
-| `--episodes`           | Specific episode indices to annotate (default: all)                             |
-| `--skip-existing`      | Skip episodes that already have annotations                                     |
-| `--model`              | VLM model (default: `Qwen/Qwen3-VL-30B-A3B-Instruct`)                           |
-| `--num-visualizations` | Number of episodes to visualize after annotation (default: 5, set to 0 to skip) |
+| 参数                     | 描述                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| `--repo-id`              | HuggingFace 数据集仓库 ID                                         |
+| `--sparse-subtasks`      | 逗号分隔的高层级子任务名称列表                                    |
+| `--dense-subtasks`       | 逗号分隔的细粒度子任务名称列表                                    |
+| `--dense-only`           | 仅生成密集标注（自动创建稀疏 "task" 阶段）                        |
+| `--video-key`            | 使用的相机/视频键（例如 `observation.images.top`）                |
+| `--num-workers`          | 并行 GPU 工作进程数（默认：1）                                    |
+| `--episodes`             | 要标注的特定回合索引（默认：全部）                                |
+| `--skip-existing`        | 跳过已有标注的回合                                                |
+| `--model`                | VLM 模型（默认：`Qwen/Qwen3-VL-30B-A3B-Instruct`）               |
+| `--num-visualizations`   | 标注后可视化的回合数（默认：5，设为 0 可跳过）                    |
 
-> **Note**: After annotation completes, 5 episodes are automatically visualized by default. Use `--num-visualizations 0` to skip this step.
+> **注意**：标注完成后，默认会自动可视化 5 个回合。使用 `--num-visualizations 0` 可跳过此步骤。
 
 ---
 
-## Step 2: Verify Annotations
+## 步骤 2：验证标注
 
 <hfoptions id="verify_mode">
 <hfoption id="single_stage">
 
-**No verification needed!** Skip this step.
+**无需验证！** 跳过此步骤。
 
 </hfoption>
 <hfoption id="dense_only">
 
-Visualize annotations using the `--visualize-only` flag:
+使用 `--visualize-only` 标志可视化标注：
 
 ```bash
 python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
@@ -232,7 +232,7 @@ python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
 </hfoption>
 <hfoption id="dual">
 
-Visualize annotations using the `--visualize-only` flag:
+使用 `--visualize-only` 标志可视化标注：
 
 ```bash
 python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
@@ -247,26 +247,26 @@ python src/lerobot/data_processing/sarm_annotations/subtask_annotation.py \
 </hfoption>
 </hfoptions>
 
-This generates visualizations showing video frames with subtask boundaries overlaid and timeline of subtasks.
+这会生成可视化结果，显示带有子任务边界叠加的视频帧以及子任务时间线。
 
-### Visualization Arguments
+### 可视化参数
 
-| Argument               | Description                                                    |
-| ---------------------- | -------------------------------------------------------------- |
-| `--visualize-only`     | Only visualize existing annotations (no generation)            |
-| `--num-visualizations` | Number of episodes to visualize (default: 5)                   |
-| `--visualize-type`     | Type of annotations to visualize: `sparse`, `dense`, or `both` |
+| 参数                     | 描述                                              |
+| ------------------------ | ------------------------------------------------- |
+| `--visualize-only`       | 仅可视化现有标注（不生成新标注）                  |
+| `--num-visualizations`   | 可视化的回合数（默认：5）                         |
+| `--visualize-type`       | 要可视化的标注类型：`sparse`、`dense` 或 `both`   |
 
-**Tip**: If annotations are inaccurate, adjust your subtask descriptions to be more specific and re-run.
+**提示**：如果标注不准确，请调整子任务描述使其更具体，然后重新运行。
 
 ---
 
-## Step 3: Train SARM
+## 步骤 3：训练 SARM
 
 <hfoptions id="train_mode">
 <hfoption id="single_stage">
 
-Train with **no annotations** - uses linear progress from 0 to 1:
+使用**无标注**模式训练——使用从 0 到 1 的线性进度：
 
 ```bash
 lerobot-train \
@@ -285,7 +285,7 @@ lerobot-train \
 </hfoption>
 <hfoption id="dense_only">
 
-Train with **dense annotations only** (sparse auto-generated):
+使用**仅密集标注**模式训练（稀疏头自动生成）：
 
 ```bash
 lerobot-train \
@@ -304,7 +304,7 @@ lerobot-train \
 </hfoption>
 <hfoption id="dual">
 
-Train with **both sparse and dense annotations**:
+使用**稀疏和密集两种标注**模式训练：
 
 ```bash
 lerobot-train \
@@ -323,25 +323,25 @@ lerobot-train \
 </hfoption>
 </hfoptions>
 
-### Multi-GPU Training
+### 多 GPU 训练
 
-Add `accelerate launch --multi_gpu --num_processes=4` to use multiple GPUs for training.
+添加 `accelerate launch --multi_gpu --num_processes=4` 可使用多个 GPU 进行训练。
 
-### Training Arguments
+### 训练参数
 
-| Argument                   | Description                                                       | Default                  |
-| -------------------------- | ----------------------------------------------------------------- | ------------------------ |
-| `--policy.annotation_mode` | `single_stage`, `dense_only`, or `dual`                           | `single_stage`           |
-| `--policy.image_key`       | Camera key for images                                             | `observation.images.top` |
-| `--policy.state_key`       | Key for joint states                                              | `observation.state`      |
-| `--policy.n_obs_steps`     | Observation history steps (total obs frames = `n_obs_steps + 1`)  | `8`                      |
-| `--policy.frame_gap`       | Gap (in frames) between sampled observations (at 30 fps: 30 ≈ 1s) | `30`                     |
+| 参数                       | 描述                                              | 默认值                    |
+| -------------------------- | ------------------------------------------------- | ------------------------- |
+| `--policy.annotation_mode` | `single_stage`、`dense_only` 或 `dual`            | `single_stage`            |
+| `--policy.image_key`       | 图像的相机键                                      | `observation.images.top`  |
+| `--policy.state_key`       | 关节状态的键                                      | `observation.state`       |
+| `--policy.n_obs_steps`     | 观测历史步数（总观测帧数 = `n_obs_steps + 1`）   | `8`                       |
+| `--policy.frame_gap`       | 采样观测之间的帧间隔（30 fps 时，30 ≈ 1 秒）     | `30`                      |
 
 ---
 
-## Step 4: Visualize Predictions
+## 步骤 4：可视化预测
 
-Use `compute_rabc_weights.py` with `--visualize-only` to visualize model predictions (and, if available, annotation-derived targets) without writing a parquet file.
+使用 `compute_rabc_weights.py` 并加 `--visualize-only` 标志来可视化模型预测（以及可用的标注派生目标），无需写入 parquet 文件。
 
 <hfoptions id="viz_mode">
 <hfoption id="single_stage">
@@ -385,48 +385,48 @@ python -m lerobot.rewards.sarm.compute_rabc_weights \
 </hfoption>
 </hfoptions>
 
-The visualization shows:
+可视化内容包括：
 
-- **Progress plot**: Predicted progress (and optional annotation-derived “GT” when available and `--stride 1`)
-- **Stage probabilities**: Stacked area plot of predicted stage probabilities
-- **Sample frames**: Key frames from the episode with progress/stage labels
+- **进度图**：预测的进度（以及可选的标注派生"真实值"——当有可用时且使用 `--stride 1`）
+- **阶段概率**：预测阶段概率的堆叠区域图
+- **样本帧**：来自回合的关键帧，带有进度/阶段标签
 
-### Visualization Arguments
+### 可视化参数
 
-| Argument               | Description                                               |
-| ---------------------- | --------------------------------------------------------- |
-| `--visualize-only`     | Only visualize predictions (no RABC computation)          |
-| `--num-visualizations` | Number of episodes to visualize (default: 5)              |
-| `--head-mode`          | SARM head to use: `sparse`, `dense`, or `both`            |
-| `--stride`             | Compute every N frames, interpolate the rest (default: 1) |
+| 参数                     | 描述                                              |
+| ------------------------ | ------------------------------------------------- |
+| `--visualize-only`       | 仅可视化预测（不进行 RA-BC 计算）                 |
+| `--num-visualizations`   | 可视化的回合数（默认：5）                         |
+| `--head-mode`            | 使用的 SARM 头：`sparse`、`dense` 或 `both`       |
+| `--stride`               | 每 N 帧计算一次，其余插值（默认：1）              |
 
 ---
 
-## Step 5 (Optional): Train Policy with RA-BC
+## 步骤 5（可选）：使用 RA-BC 训练策略
 
-Reward-Aligned Behavior Cloning (RA-BC) uses the trained SARM model to weight training samples based on predicted progress improvement. This requires two steps:
+基于奖励的行为克隆（RA-BC，Reward-Aligned Behavior Cloning）使用训练好的 SARM 模型，根据预测的进度改善情况对训练样本进行加权。这需要两个步骤：
 
-1. **Precompute progress values** for all frames using the trained SARM model
-2. **Train policy** with RA-BC weighting using the precomputed values
+1. **预计算进度值**：使用训练好的 SARM 模型计算所有帧的进度值
+2. **使用 RA-BC 加权训练策略**：使用预计算的进度值训练策略
 
-### How RA-BC Works
+### RA-BC 工作原理
 
-For each training sample, RA-BC computes the progress delta:
+对于每个训练样本，RA-BC 计算进度差异（delta）：
 
 ```
 r_i = φ(o_{t+Δ}) - φ(o_t)
 ```
 
-Where `φ` is the SARM progress prediction and `Δ` is the policy's `chunk_size`. Samples with positive progress (good demonstrations) get higher weights, while samples with negative or zero progress get down-weighted.
+其中 `φ` 是 SARM 进度预测，`Δ` 是策略的 `chunk_size`。进度为正（良好演示）的样本获得更高权重，而进度为负或零的样本权重降低。
 
-The weighting follows **Equations 8-9** from the paper:
+加权方式遵循论文中的**公式 8-9**：
 
-- **Soft weight**: `w̃_i = clip((r_i − (μ − 2σ)) / (4σ + ε), 0, 1)`
-- **Final weight**: `w_i = 𝟙{r_i > κ} + 𝟙{0 ≤ r_i ≤ κ} × w̃_i`
+- **软权重**：`w̃_i = clip((r_i − (μ − 2σ)) / (4σ + ε), 0, 1)`
+- **最终权重**：`w_i = 𝟙{r_i > κ} + 𝟙{0 ≤ r_i ≤ κ} × w̃_i`
 
-### Step 5a: Compute SARM Progress Values
+### 步骤 5a：计算 SARM 进度值
 
-First, run the SARM model on all frames in your dataset to compute progress values:
+首先，对数据集中所有帧运行 SARM 模型以计算进度值：
 
 ```bash
 python -m lerobot.rewards.sarm.compute_rabc_weights \
@@ -437,35 +437,35 @@ python -m lerobot.rewards.sarm.compute_rabc_weights \
   --push-to-hub
 ```
 
-This script:
+该脚本：
 
-- Processes all frames and computes progress values
-- Saves progress values to a parquet file next to the dataset on disk (defaults to `<dataset_root>/sarm_progress.parquet`)
-- Generates visualizations of the first N episodes (default: 5)
+- 处理所有帧并计算进度值
+- 将进度值保存到磁盘上数据集旁边的 parquet 文件中（默认为 `<dataset_root>/sarm_progress.parquet`）
+- 生成前 N 个回合的可视化结果（默认：5）
 
-**Arguments:**
+**参数：**
 
-| Argument               | Description                                                    | Default    |
-| ---------------------- | -------------------------------------------------------------- | ---------- |
-| `--reward-model-path`  | Path to trained SARM model                                     | (required) |
-| `--head-mode`          | SARM head to use: `sparse`, `dense`, or `both`                 | `sparse`   |
-| `--device`             | Device for inference                                           | `cuda`     |
-| `--visualize-only`     | Only visualize predictions (no RA-BC computation)              | `false`    |
-| `--num-visualizations` | Number of episodes to visualize (default: 5, set to 0 to skip) | `5`        |
+| 参数                     | 描述                                          | 默认值      |
+| ------------------------ | --------------------------------------------- | ----------- |
+| `--reward-model-path`    | 训练好的 SARM 模型路径                        | （必填）    |
+| `--head-mode`            | 使用的 SARM 头：`sparse`、`dense` 或 `both`   | `sparse`    |
+| `--device`               | 推理设备                                      | `cuda`      |
+| `--visualize-only`       | 仅可视化预测（不进行 RA-BC 计算）             | `false`     |
+| `--num-visualizations`   | 可视化的回合数（默认：5，设为 0 可跳过）      | `5`         |
 
-**Output format** (`sarm_progress.parquet`):
+**输出格式**（`sarm_progress.parquet`）：
 
-| Column            | Description                                    |
-| ----------------- | ---------------------------------------------- |
-| `index`           | Global frame index in dataset                  |
-| `episode_index`   | Episode number                                 |
-| `frame_index`     | Local frame index within episode               |
-| `progress_sparse` | Sparse head progress value [0, 1]              |
-| `progress_dense`  | Dense head progress value [0, 1] (if computed) |
+| 列                  | 描述                              |
+| ------------------- | --------------------------------- |
+| `index`             | 数据集中的全局帧索引              |
+| `episode_index`     | 回合编号                          |
+| `frame_index`       | 回合内的本地帧索引                |
+| `progress_sparse`   | 稀疏头进度值 [0, 1]              |
+| `progress_dense`    | 密集头进度值 [0, 1]（如果计算了）|
 
-### Step 5b: Train Policy with RA-BC
+### 步骤 5b：使用 RA-BC 训练策略
 
-Once you have the progress file, train your policy with RA-BC weighting. The progress file is auto-detected from the dataset path (`sarm_progress.parquet`) if not explicitly provided. Currently PI0, PI0.5 and SmolVLA are supported with RA-BC:
+获得进度文件后，即可使用 RA-BC 加权训练策略。进度文件会从数据集路径（`sarm_progress.parquet`）自动检测，除非明确指定。目前 PI0、PI0.5 和 SmolVLA 支持 RA-BC：
 
 ```bash
 lerobot-train \
@@ -479,70 +479,70 @@ lerobot-train \
   --steps=40000
 ```
 
-The training script automatically:
+训练脚本会自动：
 
-- Loads the precomputed progress values from the parquet file
-- Uses the policy's `chunk_size` to compute progress deltas (Δ)
-- Computes sample weights based on progress improvement
-- Applies weighted loss during training
+- 从 parquet 文件加载预计算的进度值
+- 使用策略的 `chunk_size` 计算进度差异（Δ）
+- 根据进度改善情况计算样本权重
+- 在训练期间应用加权损失
 
-**RA-BC Arguments:**
+**RA-BC 参数：**
 
-| Argument                           | Description                                            | Default                 |
-| ---------------------------------- | ------------------------------------------------------ | ----------------------- |
-| `--sample_weighting.type`          | Weighting strategy type (`rabc` or `uniform`)          | `rabc`                  |
-| `--sample_weighting.progress_path` | Path to progress parquet file                          | `sarm_progress.parquet` |
-| `--sample_weighting.head_mode`     | Which SARM head's progress to use: `sparse` or `dense` | `sparse`                |
-| `--sample_weighting.kappa`         | Threshold κ for high-quality samples                   | `0.01`                  |
-| `--sample_weighting.epsilon`       | Small constant for numerical stability                 | `1e-6`                  |
+| 参数                               | 描述                                        | 默认值                   |
+| ---------------------------------- | ------------------------------------------- | ------------------------ |
+| `--sample_weighting.type`          | 加权策略类型（`rabc` 或 `uniform`）         | `rabc`                   |
+| `--sample_weighting.progress_path` | 进度 parquet 文件路径                       | `sarm_progress.parquet`  |
+| `--sample_weighting.head_mode`     | 使用哪个 SARM 头的进度：`sparse` 或 `dense` | `sparse`                 |
+| `--sample_weighting.kappa`         | 高质量样本的阈值 κ                          | `0.01`                   |
+| `--sample_weighting.epsilon`       | 数值稳定性的小常数                          | `1e-6`                   |
 
-### Tuning RA-BC Kappa
+### 调优 RA-BC Kappa
 
-The `kappa` parameter is the threshold that determines which samples get full weight (w=1). Understanding how to tune it is critical for RA-BC to work effectively.
+`kappa` 参数是决定哪些样本获得全权重（w=1）的阈值。理解如何调优它对于 RA-BC 的有效运行至关重要。
 
-**How the weighting works:**
+**加权方式：**
 
-| Condition           | Weight                  |
-| ------------------- | ----------------------- |
-| `delta > kappa`     | 1.0 (hard threshold)    |
-| `0 ≤ delta ≤ kappa` | Soft weight from Eq. 8  |
-| `delta < 0`         | 0.0 (negative progress) |
+| 条件                | 权重                     |
+| ------------------- | ------------------------ |
+| `delta > kappa`     | 1.0（硬阈值）            |
+| `0 ≤ delta ≤ kappa` | 公式 8 的软权重          |
+| `delta < 0`         | 0.0（负向进度）          |
 
-**Diagnosing kappa issues:**
+**诊断 kappa 问题：**
 
-Monitor these WandB metrics during training:
+训练期间监控以下 WandB 指标：
 
-| Metric                        | Healthy Range | Problem Indicator         |
-| ----------------------------- | ------------- | ------------------------- |
-| `sample_weight_mean_weight`   | 0.3 - 0.8     | ≈ 1.0 means kappa too low |
-| `sample_weighting/delta_mean` | > 0           | Should be positive        |
-| `sample_weighting/delta_std`  | > 0           | Variance in data quality  |
+| 指标                              | 健康范围    | 问题指示                    |
+| --------------------------------- | ----------- | ---------------------------- |
+| `sample_weight_mean_weight`       | 0.3 - 0.8   | ≈ 1.0 表示 kappa 过低        |
+| `sample_weighting/delta_mean`     | > 0         | 应为正值                     |
+| `sample_weighting/delta_std`      | > 0         | 数据质量存在差异             |
 
-**If `sample_weight_mean_weight ≈ 1.0`:** Your kappa is too low. Most samples have `delta > kappa` and bypass the soft-weighting entirely. RA-BC becomes equivalent to vanilla BC.
+**如果 `sample_weight_mean_weight ≈ 1.0`：** 你的 kappa 太低了。大多数样本的 `delta > kappa`，完全绕过了软加权。RA-BC 等同于普通的 BC。
 
-**Setting kappa based on your data:**
+**根据数据设置 kappa：**
 
-The default `kappa=0.01` was tuned for the paper's T-shirt folding task (~90s episodes at 30fps). For your dataset, check the logged `sample_weighting/delta_mean` and `sample_weighting/delta_std`:
+默认的 `kappa=0.01` 是针对论文中的 T 恤折叠任务（约 90 秒的回合，30fps）调优的。对于你自己的数据集，请检查记录的 `sample_weighting/delta_mean` 和 `sample_weighting/delta_std`：
 
 ```
-# If delta_mean ≈ 0.03 and delta_std ≈ 0.02:
-# Most deltas fall in range [0.01, 0.05]
+# 如果 delta_mean ≈ 0.03 且 delta_std ≈ 0.02：
+# 大多数 delta 落在 [0.01, 0.05] 范围内
 
-# Option 1: Set kappa = delta_mean (medium selectivity)
+# 选项 1：设置 kappa = delta_mean（中等选择性）
 --sample_weighting.kappa=0.03
 
-# Option 2: Set kappa = delta_mean + delta_std (high selectivity)
+# 选项 2：设置 kappa = delta_mean + delta_std（高选择性）
 --sample_weighting.kappa=0.05
 
-# Option 3: Set kappa = delta_mean + 2*delta_std (very selective)
+# 选项 3：设置 kappa = delta_mean + 2*delta_std（极高选择性）
 --sample_weighting.kappa=0.07
 ```
 
-**When RA-BC may not help:**
+**RA-BC 可能无帮助的情况：**
 
-If your dataset is already high quality (consistent progress across all demonstrations), RA-BC won't provide much benefit since there's nothing to filter.
+如果你的数据集质量已经很高（所有演示的进度一致），RA-BC 不会带来太多提升，因为没有什么需要过滤的。
 
-### Multi-GPU Training with RA-BC
+### 使用 RA-BC 的多 GPU 训练
 
 ```bash
 accelerate launch \
@@ -560,28 +560,28 @@ accelerate launch \
 
 ---
 
-## Tips & Best Practices
+## 提示与最佳实践
 
-### Choosing a Mode
+### 选择模式
 
-- **Start with `single_stage`** for quick experiments - no annotation overhead
-- Use **`dense_only`** when you want detailed progress tracking but tasks don't have clear high-level stages
-- Use **`dual`** for complex tasks where both coarse and fine-grained progress is meaningful
+- **从 `single_stage` 开始**进行快速实验——无需标注开销
+- 在需要详细进度追踪但任务没有明确高层级阶段时，使用 **`dense_only`**
+- 对于粗粒度和细粒度进度都有意义的复杂任务，使用 **`dual`**
 
-### Annotation Quality
+### 标注质量
 
-1. **Be specific with subtask names**: Instead of "fold", use "grab near side and fold toward center"
-2. **Verify with visualization**: Always check a few episodes before training
-3. **Consistent naming**: Use the same subtask names across all episodes
+1. **子任务名称要具体**：与其用"fold"，不如用"抓住靠近的一侧并向中心折叠"
+2. **通过可视化验证**：训练前始终检查几个回合
+3. **命名一致**：在所有回合中使用相同的子任务名称
 
 ### RA-BC
 
-1. **Train SARM first**: RA-BC quality depends entirely on SARM quality
-2. **Monitor `sample_weight_mean_weight`**: If it's ≈ 1.0, increase kappa (see [Tuning RA-BC Kappa](#tuning-ra-bc-kappa))
+1. **先训练 SARM**：RA-BC 的质量完全取决于 SARM 的质量
+2. **监控 `sample_weight_mean_weight`**：如果 ≈ 1.0，增大 kappa（参见[调优 RA-BC Kappa](#tuning-ra-bc-kappa)）
 
 ---
 
-## Citation
+## 引用
 
 ```bibtex
 @article{chen2025sarm,

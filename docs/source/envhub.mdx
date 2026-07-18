@@ -1,100 +1,99 @@
-# Loading Environments from the Hub
+# 从 Hub 加载环境
 
-The **EnvHub** feature allows you to load simulation environments directly from the Hugging Face Hub with a single line of code. This unlocks a powerful new model for collaboration: instead of environments being locked away inside monolithic libraries, anyone can publish custom environments and share them with the community.
+**EnvHub** 功能允许你通过一行代码直接从 Hugging Face Hub 加载仿真环境。这开启了一种强大的新型协作模式：环境不再被锁定在单一的库中，任何人都可以发布自定义环境并与社区分享。
 
-## What is EnvHub?
+## 什么是 EnvHub？
 
-EnvHub lets you create custom robotics simulation environments with your own robot models and scenarios, and make them easily usable by anyone through the LeRobot framework.
+EnvHub 让你可以使用自己的机器人模型和场景创建自定义的机器人仿真环境，并使任何人都能通过 LeRobot 框架轻松使用。
 
-EnvHub packages are stored on the Hugging Face Hub, and can be seamlessly pulled and used in your AI robotics projects through LeRobot with a single line of code.
+EnvHub 包存储在 Hugging Face Hub 上，可以通过 LeRobot 以一行代码无缝拉取和使用到你的 AI 机器人项目中。
 
-Thanks to EnvHub, you can:
+借助 EnvHub，你可以：
 
-1. **Create and publish environments** to the Hugging Face Hub as Git repositories, and distribute complex physics simulations without packaging hassles
-2. **Load environments** dynamically, without installing them as packages
-3. **Version and track** environment changes using Git semantics
-4. **Discover** new simulation tasks shared by the community
+1. **创建并发布环境**到 Hugging Face Hub 作为 Git 仓库，无需打包难题即可分发复杂的物理仿真
+2. **动态加载环境**，无需将其安装为软件包
+3. **版本管理和追踪**环境变更，使用 Git 语义
+4. **发现**社区共享的新仿真任务
 
-This design means you can go from discovering an interesting environment on the Hub to running experiments in seconds, or create your own custom robot and environment without worrying about dependency conflicts or complex installation procedures.
+这种设计意味着你可以从在 Hub 上发现一个有趣的环境，到在数秒内运行实验；或者创建你自己的自定义机器人及环境，而无需担心依赖冲突或复杂的安装流程。
 
-When you create an EnvHub package, you can build anything you want inside it and use any simulation tool you like: this is your own space to play with. The only requirement is that the package contains an `env.py` file that defines the environment and allows LeRobot to load and use your EnvHub package.
+当你创建 EnvHub 包时，你可以在其中构建任何你想要的内容，并使用任何你喜欢的仿真工具：这是你自己的发挥空间。唯一的要求是该包必须包含一个 `env.py` 文件，用于定义环境并允许 LeRobot 加载和使用你的 EnvHub 包。
 
-This `env.py` file needs to expose a small API so LeRobot can load and run it. In particular, you must provide a `make_env(n_envs: int = 1, use_async_envs: bool = False)` or `make_env(n_envs: int = 1, use_async_envs: bool = False, cfg: EnvConfig)` function, which is the main entry point for LeRobot. It should return one of:
+这个 `env.py` 文件需要暴露一个小的 API，以便 LeRobot 可以加载和运行它。具体来说，你必须提供一个 `make_env(n_envs: int = 1, use_async_envs: bool = False)` 或 `make_env(n_envs: int = 1, use_async_envs: bool = False, cfg: EnvConfig)` 函数，这是 LeRobot 的主要入口点。它应返回以下之一：
 
-- A `gym.vector.VectorEnv` (most common)
-- A single `gym.Env` (will be automatically wrapped)
-- A dict mapping `{suite_name: {task_id: VectorEnv}}` (for multi-task benchmarks)
+- 一个 `gym.vector.VectorEnv`（最常见）
+- 单个 `gym.Env`（将自动被包装）
+- 一个字典映射 `{suite_name: {task_id: VectorEnv}}`（用于多任务基准测试）
 
-You can also pass an `EnvConfig` object to `make_env` to configure the environment (e.g. the number of environments, task, camera name, initial states, control mode, episode length, etc.).
+你还可以向 `make_env` 传递一个 `EnvConfig` 对象来配置环境（例如环境数量、任务、相机名称、初始状态、控制模式、回合长度等）。
 
-Finally, your environment must implement the standard `gym.vector.VectorEnv` interface so it works with LeRobot, including methods like `reset` and `step`.
+最后，你的环境必须实现标准的 `gym.vector.VectorEnv` 接口，以便与 LeRobot 兼容，包括 `reset` 和 `step` 等方法。
 
-## Quick Start
+## 快速开始
 
-Loading an environment from the Hub is as simple as:
+从 Hub 加载环境就像这样简单：
 
 ```python
 from lerobot.envs import make_env
 
-# Load a hub environment (requires explicit consent to run remote code)
+# 加载一个 Hub 环境（需要明确同意执行远程代码）
 env = make_env("lerobot/cartpole-env", trust_remote_code=True)
 ```
 
 <Tip warning={true}>
-  **Security Notice**: Loading environments from the Hub executes Python code
-  from third-party repositories. Only use `trust_remote_code=True` with
-  repositories you trust. We strongly recommend pinning to a specific commit
-  hash for reproducibility and security.
+  **安全提示**：从 Hub 加载环境会执行第三方仓库中的 Python 代码。
+  仅对您信任的仓库使用 `trust_remote_code=True`。为了可重现性和安全性，
+  我们强烈建议固定到特定的提交哈希。
 </Tip>
 
-## Repository Structure
+## 仓库结构
 
-To make your environment loadable from the Hub, your repository must contain at minimum:
+要使你的环境可以从 Hub 加载，你的仓库至少需要包含以下内容：
 
-### Required Files
+### 必需文件
 
-**`env.py`** (or custom Python file)
+**`env.py`**（或自定义 Python 文件）
 
-- Must expose a `make_env(n_envs: int, use_async_envs: bool)` function
-- This function should return one of:
-  - A `gym.vector.VectorEnv` (most common)
-  - A single `gym.Env` (will be automatically wrapped)
-  - A dict mapping `{suite_name: {task_id: VectorEnv}}` (for multi-task benchmarks)
+- 必须暴露一个 `make_env(n_envs: int, use_async_envs: bool)` 函数
+- 该函数应返回以下之一：
+  - 一个 `gym.vector.VectorEnv`（最常见）
+  - 单个 `gym.Env`（将自动被包装）
+  - 一个字典映射 `{suite_name: {task_id: VectorEnv}}`（用于多任务基准测试）
 
-### Optional Files
+### 可选文件
 
 **`requirements.txt`**
 
-- List any additional dependencies your environment needs
-- Users will need to install these manually before loading your environment
+- 列出你的环境所需的任何额外依赖
+- 用户在加载环境前需要手动安装这些依赖
 
 **`README.md`**
 
-- Document your environment: what task it implements, observation/action spaces, rewards, etc.
-- Include usage examples and any special setup instructions
+- 记录你的环境：实现了什么任务、观测/动作空间、奖励等
+- 包含使用示例和任何特殊的设置说明
 
 **`.gitignore`**
 
-- Exclude unnecessary files from your repository
+- 从你的仓库中排除不必要的文件
 
-### Example Repository Structure
+### 示例仓库结构
 
 ```
 my-environment-repo/
-├── env.py                 # Main environment definition (required)
-├── requirements.txt       # Dependencies (optional)
-├── README.md             # Documentation (recommended)
-├── assets/               # Images, videos, etc. (optional)
+├── env.py                 # 主要环境定义（必需）
+├── requirements.txt       # 依赖项（可选）
+├── README.md             # 文档（推荐）
+├── assets/               # 图片、视频等（可选）
 │   └── demo.gif
-└── configs/              # Config files if needed (optional)
+└── configs/              # 配置文件（可选）
     └── task_config.yaml
 ```
 
-## Creating Your Environment Repository
+## 创建你的环境仓库
 
-### Step 1: Define Your Environment
+### 步骤 1：定义你的环境
 
-Create an `env.py` file with a `make_env` function:
+创建一个包含 `make_env` 函数的 `env.py` 文件：
 
 ```python
 # env.py
@@ -102,65 +101,65 @@ import gymnasium as gym
 
 def make_env(n_envs: int = 1, use_async_envs: bool = False):
     """
-    Create vectorized environments for your custom task.
+    为你的自定义任务创建向量化环境。
 
     Args:
-        n_envs: Number of parallel environments
-        use_async_envs: Whether to use AsyncVectorEnv or SyncVectorEnv
+        n_envs: 并行环境的数量
+        use_async_envs: 是否使用 AsyncVectorEnv 或 SyncVectorEnv
 
     Returns:
-        gym.vector.VectorEnv or dict mapping suite names to vectorized envs
+        gym.vector.VectorEnv 或字典映射套件名称到向量化环境
     """
     def _make_single_env():
-        # Create your custom environment
+        # 创建你的自定义环境
         return gym.make("CartPole-v1")
 
-    # Choose vector environment type
+    # 选择向量环境类型
     env_cls = gym.vector.AsyncVectorEnv if use_async_envs else gym.vector.SyncVectorEnv
 
-    # Create vectorized environment
+    # 创建向量化环境
     vec_env = env_cls([_make_single_env for _ in range(n_envs)])
 
     return vec_env
 ```
 
-### Step 2: Test Locally
+### 步骤 2：本地测试
 
-Before uploading, test your environment locally:
+在上传之前，先在本地测试你的环境：
 
 ```python
 from lerobot.envs.utils import _load_module_from_path, _call_make_env, _normalize_hub_result
 
-# Load your module
+# 加载你的模块
 module = _load_module_from_path("./env.py")
 
-# Test the make_env function
+# 测试 make_env 函数
 result = _call_make_env(module, n_envs=2, use_async_envs=False)
 normalized = _normalize_hub_result(result)
 
-# Verify it works
+# 验证其是否正常工作
 suite_name = next(iter(normalized))
 env = normalized[suite_name][0]
 obs, info = env.reset()
-print(f"Observation shape: {obs.shape if hasattr(obs, 'shape') else type(obs)}")
+print(f"观测值形状: {obs.shape if hasattr(obs, 'shape') else type(obs)}")
 env.close()
 ```
 
-### Step 3: Upload to the Hub
+### 步骤 3：上传到 Hub
 
-Upload your repository to Hugging Face:
+将你的仓库上传到 Hugging Face：
 
 ```bash
-# Install huggingface_hub if needed
+# 如有需要，安装 huggingface_hub
 pip install huggingface_hub
 
-# Login to Hugging Face
+# 登录 Hugging Face
 hf auth login
 
-# Create a new repository
+# 创建新仓库
 hf repo create my-org/my-custom-env
 
-# Initialize git and push
+# 初始化 git 并推送
 git init
 git add .
 git commit -m "Initial environment implementation"
@@ -168,17 +167,17 @@ git remote add origin https://huggingface.co/my-org/my-custom-env
 git push -u origin main
 ```
 
-Alternatively, use the `huggingface_hub` Python API:
+或者，使用 `huggingface_hub` Python API：
 
 ```python
 from huggingface_hub import HfApi
 
 api = HfApi()
 
-# Create repository
+# 创建仓库
 api.create_repo("my-custom-env", repo_type="space")
 
-# Upload files
+# 上传文件
 api.upload_folder(
     folder_path="./my-env-folder",
     repo_id="username/my-custom-env",
@@ -186,90 +185,90 @@ api.upload_folder(
 )
 ```
 
-## Loading Environments from the Hub
+## 从 Hub 加载环境
 
-### Basic Usage
+### 基本用法
 
 ```python
 from lerobot.envs import make_env
 
-# Load from the hub
+# 从 Hub 加载
 envs_dict = make_env(
     "username/my-custom-env",
     n_envs=4,
     trust_remote_code=True
 )
 
-# Access the environment
+# 访问环境
 suite_name = next(iter(envs_dict))
 env = envs_dict[suite_name][0]
 
-# Use it like any gym environment
+# 像使用任何 gym 环境一样使用
 obs, info = env.reset()
 action = env.action_space.sample()
 obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-### Advanced: Pinning to Specific Versions
+### 进阶：固定到特定版本
 
-For reproducibility and security, pin to a specific Git revision:
+为了可重现性和安全性，固定到特定的 Git 修订版：
 
 ```python
-# Pin to a specific branch
+# 固定到特定分支
 env = make_env("username/my-env@main", trust_remote_code=True)
 
-# Pin to a specific commit (recommended for papers/experiments)
+# 固定到特定提交（建议用于论文/实验）
 env = make_env("username/my-env@abc123def456", trust_remote_code=True)
 
-# Pin to a tag
+# 固定到标签
 env = make_env("username/my-env@v1.0.0", trust_remote_code=True)
 ```
 
-### Custom File Paths
+### 自定义文件路径
 
-If your environment definition is not in `env.py`:
+如果你的环境定义不在 `env.py` 中：
 
 ```python
-# Load from a custom file
+# 从自定义文件加载
 env = make_env("username/my-env:custom_env.py", trust_remote_code=True)
 
-# Combine with version pinning
+# 结合版本固定
 env = make_env("username/my-env@v1.0:envs/task_a.py", trust_remote_code=True)
 ```
 
-### Async Environments
+### 异步环境
 
-For better performance with multiple environments:
+为了在多环境中获得更好的性能：
 
 ```python
 envs_dict = make_env(
     "username/my-env",
     n_envs=8,
-    use_async_envs=True,  # Use AsyncVectorEnv for parallel execution
+    use_async_envs=True,  # 使用 AsyncVectorEnv 进行并行执行
     trust_remote_code=True
 )
 ```
 
-## URL Format Reference
+## URL 格式参考
 
-The hub URL format supports several patterns:
+Hub URL 格式支持多种模式：
 
-| Pattern              | Description                    | Example                                |
-| -------------------- | ------------------------------ | -------------------------------------- |
-| `user/repo`          | Load `env.py` from main branch | `make_env("lerobot/pusht-env")`        |
-| `user/repo@revision` | Load from specific revision    | `make_env("lerobot/pusht-env@main")`   |
-| `user/repo:path`     | Load custom file               | `make_env("lerobot/envs:pusht.py")`    |
-| `user/repo@rev:path` | Revision + custom file         | `make_env("lerobot/envs@v1:pusht.py")` |
+| 模式 | 描述 | 示例 |
+| --- | --- | --- |
+| `user/repo` | 从主分支加载 `env.py` | `make_env("lerobot/pusht-env")` |
+| `user/repo@revision` | 从特定版本加载 | `make_env("lerobot/pusht-env@main")` |
+| `user/repo:path` | 加载自定义文件 | `make_env("lerobot/envs:pusht.py")` |
+| `user/repo@rev:path` | 版本 + 自定义文件 | `make_env("lerobot/envs@v1:pusht.py")` |
 
-## Multi-Task Environments
+## 多任务环境
 
-For benchmarks with multiple tasks (like LIBERO), return a nested dictionary:
+对于包含多个任务的基准测试（如 LIBERO），返回一个嵌套字典：
 
 ```python
 def make_env(n_envs: int = 1, use_async_envs: bool = False):
     env_cls = gym.vector.AsyncVectorEnv if use_async_envs else gym.vector.SyncVectorEnv
 
-    # Return dict: {suite_name: {task_id: VectorEnv}}
+    # 返回字典：{suite_name: {task_id: VectorEnv}}
     return {
         "suite_1": {
             0: env_cls([lambda: gym.make("Task1-v0") for _ in range(n_envs)]),
@@ -281,151 +280,151 @@ def make_env(n_envs: int = 1, use_async_envs: bool = False):
     }
 ```
 
-## Security Considerations
+## 安全考虑
 
 <Tip warning={true}>
-  **Important**: The `trust_remote_code=True` flag is required to execute
-  environment code from the Hub. This is by design for security.
+  **重要提示**：需要 `trust_remote_code=True` 标志才能从 Hub 执行环境代码。
+  这是出于安全考虑的设计。
 </Tip>
 
-When loading environments from the Hub:
+从 Hub 加载环境时：
 
-1. **Review the code first**: Visit the repository and inspect `env.py` before loading
-2. **Pin to commits**: Use specific commit hashes for reproducibility
-3. **Check dependencies**: Review `requirements.txt` for suspicious packages
-4. **Use trusted sources**: Prefer official organizations or well-known researchers
-5. **Sandbox if needed**: Run untrusted code in isolated environments (containers, VMs)
+1. **先审查代码**：在加载前访问仓库并检查 `env.py`
+2. **固定到提交**：使用特定的提交哈希以确保可重现性
+3. **检查依赖项**：审查 `requirements.txt` 中是否有可疑的包
+4. **使用可信源**：优先选择官方组织或知名研究人员
+5. **必要时沙箱化**：在隔离环境（容器、虚拟机）中运行不受信任的代码
 
-Example of safe usage:
+安全使用的示例：
 
 ```python
-# ❌ BAD: Loading without inspection
+# ❌ 不好：不经检查就加载
 env = make_env("random-user/untrusted-env", trust_remote_code=True)
 
-# ✅ GOOD: Review code, then pin to specific commit
-# 1. Visit https://huggingface.co/trusted-org/verified-env
-# 2. Review the env.py file
-# 3. Copy the commit hash
+# ✅ 好：审查代码，然后固定到特定提交
+# 1. 访问 https://huggingface.co/trusted-org/verified-env
+# 2. 审查 env.py 文件
+# 3. 复制提交哈希
 env = make_env("trusted-org/verified-env@a1b2c3d4", trust_remote_code=True)
 ```
 
-## Example: CartPole from the Hub
+## 示例：从 Hub 加载 CartPole
 
-Here's a complete example using the reference CartPole environment:
+以下是使用参考 CartPole 环境的完整示例：
 
 ```python
 from lerobot.envs import make_env
 import numpy as np
 
-# Load the environment
+# 加载环境
 envs_dict = make_env("lerobot/cartpole-env", n_envs=4, trust_remote_code=True)
 
-# Get the vectorized environment
+# 获取向量化环境
 suite_name = next(iter(envs_dict))
 env = envs_dict[suite_name][0]
 
-# Run a simple episode
+# 运行一个简单的回合
 obs, info = env.reset()
 done = np.zeros(env.num_envs, dtype=bool)
 total_reward = np.zeros(env.num_envs)
 
 while not done.all():
-    # Random policy
+    # 随机策略
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
     total_reward += reward
     done = terminated | truncated
 
-print(f"Average reward: {total_reward.mean():.2f}")
+print(f"平均奖励: {total_reward.mean():.2f}")
 env.close()
 ```
 
-## Benefits of EnvHub
+## EnvHub 的优势
 
-### For Environment Authors
+### 对于环境作者
 
-- **Easy distribution**: No PyPI packaging required
-- **Version control**: Use Git for environment versioning
-- **Rapid iteration**: Push updates instantly
-- **Documentation**: Hub README renders beautifully
-- **Community**: Reach LeRobot users directly
+- **轻松分发**：无需 PyPI 打包
+- **版本控制**：使用 Git 进行环境版本管理
+- **快速迭代**：即时推送更新
+- **文档**：Hub README 渲染效果出色
+- **社区**：直接触达 LeRobot 用户
 
-### For Researchers
+### 对于研究人员
 
-- **Quick experiments**: Load any environment in one line
-- **Reproducibility**: Pin to specific commits
-- **Discovery**: Browse environments on the Hub
-- **No conflicts**: No need to install conflicting packages
+- **快速实验**：一行代码加载任何环境
+- **可重现性**：固定到特定提交
+- **发现**：浏览 Hub 上的环境
+- **无冲突**：无需安装冲突的包
 
-### For the Community
+### 对于社区
 
-- **Growing ecosystem**: More diverse simulation tasks
-- **Standardization**: Common `make_env` API
-- **Collaboration**: Fork and improve existing environments
-- **Accessibility**: Lower barrier to sharing research
+- **不断增长的生态系统**：更多样化的仿真任务
+- **标准化**：通用的 `make_env` API
+- **协作**：复刻和改进现有环境
+- **可访问性**：降低分享研究的门槛
 
-## Troubleshooting
+## 故障排除
 
-### "Refusing to execute remote code"
+### "拒绝执行远程代码"
 
-You must explicitly pass `trust_remote_code=True`:
+你必须显式传递 `trust_remote_code=True`：
 
 ```python
 env = make_env("user/repo", trust_remote_code=True)
 ```
 
-### "Module X not found"
+### "未找到模块 X"
 
-The hub environment has dependencies you need to install:
+Hub 环境有你需要安装的依赖项：
 
 ```bash
-# Check the repo's requirements.txt and install dependencies
+# 检查仓库的 requirements.txt 并安装依赖
 pip install gymnasium numpy
 ```
 
-### "make_env not found in module"
+### "在模块中未找到 make_env"
 
-Your `env.py` must expose a `make_env` function:
+你的 `env.py` 必须暴露一个 `make_env` 函数：
 
 ```python
 def make_env(n_envs: int, use_async_envs: bool):
-    # Your implementation
+    # 你的实现
     pass
 ```
 
-### Environment returns wrong type
+### 环境返回了错误类型
 
-The `make_env` function must return:
+`make_env` 函数必须返回：
 
-- A `gym.vector.VectorEnv`, or
-- A single `gym.Env`, or
-- A dict `{suite_name: {task_id: VectorEnv}}`
+- 一个 `gym.vector.VectorEnv`，或者
+- 单个 `gym.Env`，或者
+- 一个字典 `{suite_name: {task_id: VectorEnv}}`
 
-## Best Practices
+## 最佳实践
 
-1. **Document your environment**: Include observation/action space descriptions, reward structure, and termination conditions in your README
-2. **Add requirements.txt**: List all dependencies with versions
-3. **Test thoroughly**: Verify your environment works locally before pushing
-4. **Use semantic versioning**: Tag releases with version numbers
-5. **Add examples**: Include usage examples in your README
-6. **Keep it simple**: Minimize dependencies when possible
-7. **License your work**: Add a LICENSE file to clarify usage terms
+1. **记录你的环境**：在 README 中包含观测/动作空间描述、奖励结构和终止条件
+2. **添加 requirements.txt**：列出所有依赖项及版本
+3. **充分测试**：在推送前验证你的环境在本地正常工作
+4. **使用语义化版本**：用版本号标记发布版本
+5. **添加示例**：在 README 中包含使用示例
+6. **保持简洁**：尽可能减少依赖项
+7. **许可你的作品**：添加 LICENSE 文件以明确使用条款
 
-## Future Directions
+## 未来方向
 
-The EnvHub ecosystem enables exciting possibilities:
+EnvHub 生态系统开启了令人兴奋的可能性：
 
-- **GPU-accelerated physics**: Share Isaac Gym or Brax environments
-- **Photorealistic rendering**: Distribute environments with advanced graphics
-- **Multi-agent scenarios**: Complex interaction tasks
-- **Real-world simulators**: Digital twins of physical setups
-- **Procedural generation**: Infinite task variations
-- **Domain randomization**: Pre-configured DR pipelines
+- **GPU 加速物理仿真**：分享 Isaac Gym 或 Brax 环境
+- **逼真渲染**：分发具有先进图形效果的环境
+- **多智能体场景**：复杂的交互任务
+- **真实世界模拟器**：物理设置的数字孪生
+- **程序化生成**：无限的任务变体
+- **域随机化**：预配置的 DR 管线
 
-As more researchers and developers contribute, the diversity and quality of available environments will grow, benefiting the entire robotics learning community.
+随着越来越多的研究人员和开发者贡献，可用环境的多样性和质量将持续增长，使整个机器人学习社区受益。
 
-## See Also
+## 参见
 
-- [Hugging Face Hub Documentation](https://huggingface.co/docs/hub/en/index)
-- [Gymnasium Documentation](https://gymnasium.farama.org/index.html)
-- [Example Hub Environment](https://huggingface.co/lerobot/cartpole-env)
+- [Hugging Face Hub 文档](https://huggingface.co/docs/hub/en/index)
+- [Gymnasium 文档](https://gymnasium.farama.org/index.html)
+- [示例 Hub 环境](https://huggingface.co/lerobot/cartpole-env)

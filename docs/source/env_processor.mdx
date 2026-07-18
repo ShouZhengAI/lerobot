@@ -1,92 +1,92 @@
-# Environment Processors
+# 环境处理器
 
-Environment processors are a critical layer in LeRobot's data processing architecture that handle **environment-specific** transformations, separate from policy-specific processing. This separation of concerns enables cleaner code, better modularity, and easier experimentation with different environments and policies.
+环境处理器是 LeRobot 数据处理架构中的一个关键层次，负责处理**环境特定**的数据转换，与策略特定的处理相分离。这种关注点分离带来了更清晰的代码、更好的模块化，以及在不同环境和策略之间进行实验的便利性。
 
-## Why Environment Processors?
+## 为什么需要环境处理器？
 
-When working with different robot environments (LIBERO, MetaWorld, Aloha, etc.), each environment often has unique data formats, coordinate systems, and conventions that need standardization **before** policy processing. Without environment processors, these transformations would be:
+在处理不同的机器人环境（LIBERO、MetaWorld、Aloha 等）时，每个环境通常有独特的数据格式、坐标系统和约定，这些都需要在策略处理**之前**进行标准化。如果没有环境处理器，这些转换将面临以下问题：
 
-1. **Hardcoded in environment code** - Making it difficult to experiment with different state representations
-2. **Duplicated across policies** - Each policy would need to handle environment-specific quirks
-3. **Mixed with policy logic** - Violating separation of concerns and making debugging harder
+1. **硬编码在环境代码中**——使得尝试不同的状态表示变得困难
+2. **在多个策略间重复**——每个策略都需要处理环境特定的特殊问题
+3. **与策略逻辑混合在一起**——违背了关注点分离原则，使调试更加困难
 
-Environment processors solve this by providing a **dedicated processing layer** between raw environment observations and policy inputs.
+环境处理器通过在原始环境观测值和策略输入之间提供一个**专用的处理层**来解决这些问题。
 
-## The Processing Pipeline
+## 处理管线
 
-Here's how data flows through the complete processing pipeline during evaluation:
+以下是在评估过程中数据如何流经完整的处理管线：
 
 ```python
-# In lerobot_eval.py rollout() function:
+# 在 lerobot_eval.py 的 rollout() 函数中：
 
-# 1. Raw environment observation (numpy arrays, various formats)
+# 1. 原始环境观测值（numpy 数组，各种格式）
 raw_observation = env.step(action)
 
-# 2. Convert numpy to torch, normalize images [0,1]
+# 2. 将 numpy 转换为 torch，归一化图像 [0,1]
 observation = preprocess_observation(raw_observation)
 
-# 3. Add task metadata (for multi-task environments)
+# 3. 添加任务元数据（用于多任务环境）
 observation = add_envs_task(env, observation)
 
-# 4. ENVIRONMENT-SPECIFIC preprocessing (NEW!)
-#    - Flatten robot states
-#    - Rotate images to match dataset conventions
-#    - Handle environment-specific coordinate systems
+# 4. 环境特定的预处理（新增！）
+#    - 展平机器人状态
+#    - 旋转图像以匹配数据集约定
+#    - 处理环境特定的坐标系
 observation = env_preprocessor(observation)
 
-# 5. POLICY-SPECIFIC preprocessing
-#    - Normalize with dataset statistics
-#    - Add batch dimensions
-#    - Move to GPU
-#    - Tokenize language instructions
+# 5. 策略特定的预处理
+#    - 使用数据集统计信息进行归一化
+#    - 添加批次维度
+#    - 移动到 GPU
+#    - 对语言指令进行分词
 observation = preprocessor(observation)
 
-# 6. Policy inference
+# 6. 策略推理
 action = policy.select_action(observation)
 
-# 7. POLICY-SPECIFIC postprocessing
-#    - Unnormalize actions
-#    - Remove batch dimensions
+# 7. 策略特定的后处理
+#    - 反归一化动作
+#    - 移除批次维度
 action = postprocessor(action)
 
-# 8. ENVIRONMENT-SPECIFIC postprocessing (NEW!)
-#    - Convert action formats if needed
-#    - Apply environment-specific constraints
+# 8. 环境特定的后处理（新增！）
+#    - 必要时转换动作格式
+#    - 应用环境特定的约束
 action_transition = {"action": action}
 action_transition = env_postprocessor(action_transition)
 action = action_transition["action"]
 
-# 9. Execute in environment
+# 9. 在环境中执行
 env.step(action)
 ```
 
-## The Benefits
+## 优势
 
-### 1. **Separation of Concerns**
+### 1. **关注点分离**
 
-Environment processors handle transformations specific to the **environment's data format**, while policy processors handle transformations specific to the **model's requirements**.
+环境处理器处理特定于**环境数据格式**的转换，而策略处理器处理特定于**模型需求**的转换。
 
 ```python
-# ❌ Before: Mixed concerns
+# ❌ 之前：关注点混杂
 class LiberoVLAPolicy:
     def preprocess(self, obs):
-        # Environment-specific: Flatten robot state (shouldn't be in policy!)
+        # 环境特定：展平机器人状态（不应该在策略中！）
         state = self._flatten_robot_state(obs["robot_state"])
-        # Policy-specific: Normalize with dataset stats
+        # 策略特定：使用数据集统计信息进行归一化
         state = self.normalizer(state)
         return state
 
-# ✅ After: Clear separation
-# Environment processor: Handles LIBERO's nested robot state
-env_preprocessor = LiberoProcessorStep()  # Flattens robot_state
+# ✅ 之后：清晰分离
+# 环境处理器：处理 LIBERO 的嵌套机器人状态
+env_preprocessor = LiberoProcessorStep()  # 展平 robot_state
 
-# Policy processor: Handles model requirements
+# 策略处理器：处理模型需求
 policy_preprocessor = NormalizerProcessorStep(stats=dataset_stats)
 ```
 
-### 2. **Flexibility and Reusability**
+### 2. **灵活性与可复用性**
 
-The same policy can work with different environment processors, and the same environment processor can work with different policies:
+同一个策略可以配合不同的环境处理器使用，同一个环境处理器也可以配合不同的策略使用：
 
 ````python
 # Use SmolVLA policy with LIBERO environment
@@ -117,42 +117,42 @@ libero_preprocessor, libero_postprocessor = make_env_pre_post_processors(
 )
 act_preprocessor, act_postprocessor = make_pre_post_processors(act_cfg)
 
-### 3. **Easier Experimentation**
+### 3. **更便捷的实验**
 
-Want to try different state representations for LIBERO? Just create a new processor:
+想为 LIBERO 尝试不同的状态表示？只需创建一个新的处理器：
 
 ```python
-# Original: 8D state (pos + quat→axisangle + gripper)
+# 原始：8 维状态（位置 + 四元数转轴角 + 夹爪）
 @ProcessorStepRegistry.register("libero_processor")
 class LiberoProcessorStep(ObservationProcessorStep):
     def _process_observation(self, obs):
-        eef_pos = robot_state["eef"]["pos"]          # 3D
-        eef_axisangle = quat2axisangle(quat)         # 3D
-        gripper = robot_state["gripper"]["qpos"]     # 2D
-        state = torch.cat([eef_pos, eef_axisangle, gripper], dim=-1)  # 8D
+        eef_pos = robot_state["eef"]["pos"]          # 3 维
+        eef_axisangle = quat2axisangle(quat)         # 3 维
+        gripper = robot_state["gripper"]["qpos"]     # 2 维
+        state = torch.cat([eef_pos, eef_axisangle, gripper], dim=-1)  # 8 维
         return state
 
-# Experiment: Add velocity for better control
+# 实验：加入速度信息以改善控制
 @ProcessorStepRegistry.register("libero_velocity_processor")
 class LiberoVelocityProcessorStep(ObservationProcessorStep):
     def _process_observation(self, obs):
-        # Include velocities for 14D state
-        eef_pos = robot_state["eef"]["pos"]          # 3D
-        eef_axisangle = quat2axisangle(quat)         # 3D
-        eef_vel = robot_state["eef"]["vel"]          # 3D  (NEW)
-        gripper_pos = robot_state["gripper"]["qpos"] # 2D
-        gripper_vel = robot_state["gripper"]["qvel"] # 3D  (NEW)
+        # 包含速度信息，14 维状态
+        eef_pos = robot_state["eef"]["pos"]          # 3 维
+        eef_axisangle = quat2axisangle(quat)         # 3 维
+        eef_vel = robot_state["eef"]["vel"]          # 3 维（新增）
+        gripper_pos = robot_state["gripper"]["qpos"] # 2 维
+        gripper_vel = robot_state["gripper"]["qvel"] # 3 维（新增）
         state = torch.cat([eef_pos, eef_axisangle, eef_vel,
-                          gripper_pos, gripper_vel], dim=-1)  # 14D
+                          gripper_pos, gripper_vel], dim=-1)  # 14 维
         return state
 ````
 
-### 4. **Cleaner Environment Code**
+### 4. **更清晰的环境代码**
 
-Environments expose **all available data** without needing to know what downstream models will use:
+环境暴露**所有可用数据**，无需了解下游模型将使用什么：
 
 ```python
-# LIBERO environment exposes full robot state
+# LIBERO 环境暴露完整的机器人状态
 observation = {
     "pixels": {"image": img, "image2": img2},
     "robot_state": {
@@ -162,30 +162,30 @@ observation = {
     }
 }
 
-# Environment processor decides what to use
-# Policy processor handles model-specific transformations
+# 环境处理器决定使用哪些数据
+# 策略处理器处理模型特定的转换
 ```
 
-## Using Environment Processors
+## 使用环境处理器
 
-### Factory Function
+### 工厂函数
 
-The `make_env_pre_post_processors` function follows the same pattern as `make_pre_post_processors` for policies:
+`make_env_pre_post_processors` 函数遵循与策略的 `make_pre_post_processors` 相同的模式：
 
 ```python
 from lerobot.envs import make_env_pre_post_processors, PushtEnv
 from lerobot.envs.configs import LiberoEnv
 
-# For LIBERO: Returns LiberoProcessorStep in preprocessor
+# 对于 LIBERO：在前处理器中返回 LiberoProcessorStep
 libero_cfg = LiberoEnv(task="libero_spatial", camera_name=["agentview"])
 env_preprocessor, env_postprocessor = make_env_pre_post_processors(libero_cfg)
 
-# For other environments: Returns identity processors (no-op)
+# 对于其他环境：返回恒等处理器（无操作）
 pusht_cfg = PushtEnv()
 env_preprocessor, env_postprocessor = make_env_pre_post_processors(pusht_cfg)
 ```
 
-### Implementation in `envs/factory.py`
+### 在 `envs/factory.py` 中的实现
 
 ```python
 def make_env_pre_post_processors(
@@ -195,66 +195,66 @@ def make_env_pre_post_processors(
     PolicyProcessorPipeline[dict[str, Any], dict[str, Any]],
 ]:
     """
-    Create preprocessor and postprocessor pipelines for environment observations.
+    为环境观测值创建前处理器和后处理器管线。
 
     Args:
-        env_cfg: The configuration of the environment.
+        env_cfg: 环境的配置。
 
     Returns:
-        A tuple containing:
-            - preprocessor: Pipeline that processes environment observations
-            - postprocessor: Pipeline that processes environment outputs
+        一个元组，包含：
+            - preprocessor: 处理环境观测值的管线
+            - postprocessor: 处理环境输出的管线
     """
-    # For LIBERO environments, add the LiberoProcessorStep to preprocessor
+    # 对于 LIBERO 环境，将 LiberoProcessorStep 添加到前处理器
     if isinstance(env_cfg, LiberoEnv) or "libero" in env_cfg.type:
         preprocessor = PolicyProcessorPipeline(steps=[LiberoProcessorStep()])
     else:
-        # For all other environments, return an identity preprocessor
+        # 对于所有其他环境，返回恒等前处理器
         preprocessor = PolicyProcessorPipeline(steps=[])
 
-    # Postprocessor is currently identity for all environments
-    # Future: Could add environment-specific action transformations
+    # 后处理器当前对所有环境都是恒等的
+    # 未来：可以添加环境特定的动作转换
     postprocessor = PolicyProcessorPipeline(steps=[])
 
     return preprocessor, postprocessor
 ```
 
-### Integration in Evaluation
+### 评估中的集成
 
-In `lerobot_eval.py`, the environment processors are created once and used throughout:
+在 `lerobot_eval.py` 中，环境处理器创建一次并在整个过程中使用：
 
 ```python
 def eval_main(cfg: EvalPipelineConfig):
-    # Create environment
+    # 创建环境
     envs = make_env(cfg.env, n_envs=cfg.eval.batch_size)
 
-    # Create policy
+    # 创建策略
     policy = make_policy(cfg=cfg.policy, env_cfg=cfg.env)
 
-    # Create policy processors
+    # 创建策略处理器
     preprocessor, postprocessor = make_pre_post_processors(
         policy_cfg=cfg.policy,
         pretrained_path=cfg.policy.pretrained_path,
     )
 
-    # Create environment processors (NEW!)
+    # 创建环境处理器（新增！）
     env_preprocessor, env_postprocessor = make_env_pre_post_processors(env_cfg=cfg.env)
 
-    # Run evaluation with both processor types
+    # 使用两种处理器类型运行评估
     eval_policy_all(
         envs=envs,
         policy=policy,
-        env_preprocessor=env_preprocessor,      # Environment-specific
-        env_postprocessor=env_postprocessor,    # Environment-specific
-        preprocessor=preprocessor,              # Policy-specific
-        postprocessor=postprocessor,            # Policy-specific
+        env_preprocessor=env_preprocessor,      # 环境特定
+        env_postprocessor=env_postprocessor,    # 环境特定
+        preprocessor=preprocessor,              # 策略特定
+        postprocessor=postprocessor,            # 策略特定
         n_episodes=cfg.eval.n_episodes,
     )
 ```
 
-## Example: LIBERO Environment Processor
+## 示例：LIBERO 环境处理器
 
-The `LiberoProcessorStep` demonstrates a real-world environment processor:
+`LiberoProcessorStep` 展示了一个真实的环境处理器：
 
 ```python
 from lerobot.processor import ObservationProcessorStep
@@ -263,29 +263,29 @@ from lerobot.processor import ObservationProcessorStep
 @ProcessorStepRegistry.register(name="libero_processor")
 class LiberoProcessorStep(ObservationProcessorStep):
     """
-    Processes LIBERO observations into the LeRobot format.
+    将 LIBERO 观测值处理为 LeRobot 格式。
 
-    **State Processing:**
-    - Extracts end-effector position (3D)
-    - Converts quaternion to axis-angle representation (3D)
-    - Extracts gripper joint positions (2D)
-    - Concatenates into 8D state vector
+    **状态处理：**
+    - 提取末端执行器位置（3 维）
+    - 将四元数转换为轴角表示（3 维）
+    - 提取夹爪关节位置（2 维）
+    - 拼接为 8 维状态向量
 
-    **Image Processing:**
-    - Rotates images 180° to match HuggingFaceVLA/libero convention
+    **图像处理：**
+    - 将图像旋转 180° 以匹配 HuggingFaceVLA/libero 约定
     """
 
     def _process_observation(self, observation):
         processed_obs = observation.copy()
 
-        # Process images: Flip 180° for camera convention
+        # 处理图像：为相机约定翻转 180°
         for key in list(processed_obs.keys()):
             if key.startswith("observation.images."):
                 img = processed_obs[key]
-                img = torch.flip(img, dims=[2, 3])  # Flip H and W
+                img = torch.flip(img, dims=[2, 3])  # 翻转 H 和 W
                 processed_obs[key] = img
 
-        # Process robot_state: Flatten to 8D vector
+        # 处理 robot_state：展平为 8 维向量
         if "observation.robot_state" in processed_obs:
             robot_state = processed_obs.pop("observation.robot_state")
 
@@ -293,10 +293,10 @@ class LiberoProcessorStep(ObservationProcessorStep):
             eef_quat = robot_state["eef"]["quat"]         # (B, 4)
             gripper_qpos = robot_state["gripper"]["qpos"] # (B, 2)
 
-            # Convert quaternion to axis-angle
+            # 将四元数转换为轴角
             eef_axisangle = self._quat2axisangle(eef_quat)  # (B, 3)
 
-            # Concatenate into single state vector
+            # 拼接为单个状态向量
             state = torch.cat((eef_pos, eef_axisangle, gripper_qpos), dim=-1)
             state = state.float()
 
@@ -305,47 +305,47 @@ class LiberoProcessorStep(ObservationProcessorStep):
         return processed_obs
 ```
 
-### Why These Transformations?
+### 为什么需要这些转换？
 
-1. **Image Rotation**: The HuggingFaceVLA/libero dataset has images rotated 180° from the raw LIBERO simulator. The processor handles this convention mismatch so policies trained on the dataset work seamlessly.
+1. **图像旋转**：HuggingFaceVLA/libero 数据集的图像相对于原始 LIBERO 模拟器旋转了 180°。处理器处理这种约定不匹配，使得在数据集上训练的策略可以无缝工作。
 
-2. **State Flattening**: The raw LIBERO environment exposes nested dictionaries with all available state information (position, quaternion, velocity, matrix representation, etc.). The processor:
-   - Selects the relevant components (pos, quat, gripper)
-   - Converts quaternion to axis-angle (more suitable for learning)
-   - Flattens to a single 8D vector that policies expect
+2. **状态展平**：原始的 LIBERO 环境暴露了包含所有可用状态信息（位置、四元数、速度、矩阵表示等）的嵌套字典。处理器会：
+   - 选择相关组件（位置、四元数、夹爪）
+   - 将四元数转换为轴角（更适合学习）
+   - 展平为策略期望的单个 8 维向量
 
-3. **Flexibility**: The environment still exposes **all** raw data. If you want to try different state representations (e.g., including velocities, using matrix representation instead of axis-angle), you can create a new processor without modifying the environment code.
+3. **灵活性**：环境仍然暴露**所有**原始数据。如果你想尝试不同的状态表示（例如包含速度信息、使用矩阵表示代替轴角），可以创建一个新的处理器，无需修改环境代码。
 
-## Adding Environment Processors for New Environments
+## 为新环境添加环境处理器
 
-To add environment processors for a new environment:
+要为新的环境添加环境处理器：
 
-### 1. Create the Processor Step
+### 1. 创建处理器步骤
 
 ```python
-# In src/lerobot/processor/env_processor.py
+# 在 src/lerobot/processor/env_processor.py 中
 
 @dataclass
 @ProcessorStepRegistry.register(name="myenv_processor")
 class MyEnvProcessorStep(ObservationProcessorStep):
-    """Process observations from MyEnv."""
+    """处理 MyEnv 的观测值。"""
 
     def _process_observation(self, observation):
         processed = observation.copy()
 
-        # Your environment-specific transformations
+        # 你的环境特定转换
         if "myenv.specific.state" in processed:
             state = processed.pop("myenv.specific.state")
-            # Transform to standard format
+            # 转换为标准格式
             processed["observation.state"] = self._transform_state(state)
 
         return processed
 ```
 
-### 2. Update Your `EnvConfig` Subclass
+### 2. 更新你的 `EnvConfig` 子类
 
 ```python
-# In src/lerobot/envs/factory.py
+# 在 src/lerobot/envs/factory.py 中
 
 def make_env_pre_post_processors(env_cfg: EnvConfig):
     if isinstance(env_cfg, LiberoEnv) or "libero" in env_cfg.type:
@@ -359,79 +359,79 @@ def make_env_pre_post_processors(env_cfg: EnvConfig):
     return preprocessor, postprocessor
 ```
 
-### 3. Use in Evaluation
+### 3. 在评估中使用
 
-No changes needed! The evaluation script automatically uses the appropriate processor:
+无需修改！评估脚本会自动使用合适的处理器：
 
 ```bash
 lerobot-eval \
     --policy.path=lerobot/my_policy \
-    --env.type=myenv \  # Automatically uses MyEnvProcessorStep
+    --env.type=myenv \  # 自动使用 MyEnvProcessorStep
     --eval.n_episodes=10
 ```
 
-## Future: Environment Postprocessors
+## 未来：环境后处理器
 
-Currently, postprocessors are identity (no-op) for all environments. Future use cases include:
+目前，所有环境的后处理器都是恒等的（无操作）。未来的使用场景包括：
 
-### Action Space Transformations
+### 动作空间转换
 
 ```python
 @dataclass
 class MyEnvActionPostprocessor(ProcessorStep):
-    """Convert policy actions to environment-specific format."""
+    """将策略动作转换为环境特定的格式。"""
 
     def __call__(self, transition: EnvTransition) -> EnvTransition:
         action = transition["action"]
 
-        # Example: Convert from Cartesian to joint space
+        # 示例：从笛卡尔空间转换为关节空间
         if self.action_space == "joint":
             action = self.ik_solver(action)
 
-        # Example: Apply environment-specific safety limits
+        # 示例：应用环境特定的安全限制
         action = torch.clamp(action, self.min_action, self.max_action)
 
         transition["action"] = action
         return transition
 ```
 
-### Coordinate System Conversions
+### 坐标系转换
 
 ```python
 @dataclass
 class CoordinateTransformPostprocessor(ProcessorStep):
-    """Transform actions between coordinate systems."""
+    """在坐标系之间转换动作。"""
 
     def __call__(self, transition: EnvTransition) -> EnvTransition:
         action = transition["action"]
 
-        # Example: Policy outputs in world frame, env expects base frame
+        # 示例：策略输出在世界坐标系，环境期望基座坐标系
         action = self.world_to_base_transform(action)
 
         transition["action"] = action
         return transition
 ```
 
-## Best Practices
+## 最佳实践
 
-1. **Keep environment processors simple**: They should only handle environment-specific data format issues, not complex learning-related transformations.
+1. **保持环境处理器简洁**：它们应仅处理环境特定的数据格式问题，而非复杂的学习相关转换。
 
-2. **Use policy processors for model requirements**: Normalization, batching, device placement, and tokenization belong in policy processors.
+2. **使用策略处理器处理模型需求**：归一化、批处理、设备放置和分词应属于策略处理器。
 
-3. **Expose all data from environments**: Let processors decide what to use rather than hardcoding choices in the environment.
+3. **从环境暴露所有数据**：让处理器决定使用哪些数据，而不是在环境中硬编码选择。
 
-4. **Document conventions**: Clearly document any coordinate system conventions, camera orientations, or data formats that your processor handles.
+4. **记录约定**：清晰记录你的处理器处理的任何坐标系约定、相机朝向或数据格式。
 
-5. **Test independently**: Environment processors should be testable without loading full policies or environments.
+5. **独立测试**：环境处理器应能在不加载完整策略或环境的情况下进行测试。
 
-## Summary
+## 总结
 
-Environment processors provide a **clean separation** between environment-specific data transformations and policy-specific model requirements. This architecture:
+环境处理器在环境特定的数据转换和策略特定的模型需求之间提供了**清晰的分离**。这种架构：
 
-- ✅ Enables easy experimentation with different state representations
-- ✅ Allows policies to work seamlessly across different environments
-- ✅ Keeps environment code focused on simulation/hardware interface
-- ✅ Makes processor pipelines more maintainable and debuggable
-- ✅ Follows the single responsibility principle
+- ✅ 能够轻松实验不同的状态表示
+- ✅ 允许策略在不同环境中无缝工作
+- ✅ 保持环境代码专注于仿真/硬件接口
+- ✅ 使处理器管线更易于维护和调试
+- ✅ 遵循单一职责原则
 
-The key insight: **Environments define data formats, processors standardize them, policies consume standardized data.** Each layer has a clear, focused responsibility.
+关键在于：**环境定义数据格式，处理器标准化数据，策略消费标准化数据。** 每个层次都有清晰、专注的职责。

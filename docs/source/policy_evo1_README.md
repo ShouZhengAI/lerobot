@@ -1,12 +1,11 @@
 # EVO1
 
-EVO1 is a Vision-Language-Action policy for robot control. The LeRobot
-integration uses an InternVL3 vision-language backbone with a flow-matching
-action head, and supports staged training through the standard LeRobot policy
-APIs.
+EVO1 是一个用于机器人控制的视觉-语言-动作（VLA，Vision-Language-Action）策略。LeRobot
+集成使用 InternVL3 视觉语言骨干网络和流匹配（flow-matching）
+动作头，并通过标准的 LeRobot 策略 API 支持分阶段训练。
 
-The upstream EVO1 project is available at
-[MINT-SJTU/Evo-1](https://github.com/MINT-SJTU/Evo-1).
+上游 EVO1 项目位于
+[MINT-SJTU/Evo-1](https://github.com/MINT-SJTU/Evo-1)。
 
 ```bibtex
 @misc{evo1,

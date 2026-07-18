@@ -1,10 +1,10 @@
-# Policy Deployment (lerobot-rollout)
+# 策略部署（Policy Deployment，lerobot-rollout）
 
-`lerobot-rollout` is the single CLI for deploying trained policies on real robots. It supports multiple execution strategies and inference backends, from quick evaluation to continuous recording and human-in-the-loop data collection.
+`lerobot-rollout` 是在真实机器人上部署训练后策略的单一 CLI 工具。它支持多种执行策略和推理后端，从快速评估到持续记录以及人在回路中的数据收集。
 
-## Quick Start
+## 快速开始
 
-No extra dependencies are needed beyond your robot and policy extras.
+除了你的机器人和策略依赖外，不需要额外的依赖。
 
 ```bash
 lerobot-rollout \
@@ -12,21 +12,21 @@ lerobot-rollout \
     --policy.path=lerobot/act_koch_real \
     --robot.type=koch_follower \
     --robot.port=/dev/ttyACM0 \
-    --task="pick up cube" \
+    --task="拾取立方体" \
     --duration=30
 ```
 
-This runs the policy for 30 seconds with no recording.
+该命令将在不记录数据的情况下运行策略 30 秒。
 
 ---
 
-## Strategies
+## 策略模式（Strategies）
 
-Select a strategy with `--strategy.type=<name>`. Each strategy defines a different control loop with its own recording and interaction semantics.
+使用 `--strategy.type=<name>` 选择策略模式。每种模式定义了不同的控制循环，具有各自的记录和交互语义。
 
-### Base (`--strategy.type=base`)
+### 基础模式（`--strategy.type=base`）
 
-Autonomous policy execution with no data recording. Use this for quick evaluation, demos, or when you only need to observe the robot.
+自主策略执行，不记录数据。适用于快速评估、演示，或仅需观察机器人时使用。
 
 ```bash
 lerobot-rollout \
@@ -35,21 +35,21 @@ lerobot-rollout \
     --robot.type=so100_follower \
     --robot.port=/dev/ttyACM0 \
     --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-    --task="Put lego brick into the box" \
+    --task="将乐高积木放入盒子" \
     --duration=60
 ```
 
-| Flag             | Description                                            |
-| ---------------- | ------------------------------------------------------ |
-| `--duration`     | Run time in seconds (0 = infinite)                     |
-| `--task`         | Task description passed to the policy                  |
-| `--display_data` | Stream observations/actions to Rerun for visualization |
+| 标志               | 描述                               |
+| ------------------ | ---------------------------------- |
+| `--duration`       | 运行时间（秒），0 表示无限期运行    |
+| `--task`           | 传递给策略的任务描述                 |
+| `--display_data`   | 将观测/动作流式传输到 Rerun 进行可视化 |
 
-### Sentry (`--strategy.type=sentry`)
+### 哨兵模式（`--strategy.type=sentry`）
 
-Continuous autonomous recording with periodic upload to the Hugging Face Hub. Episode boundaries are auto-computed from camera resolution and FPS so each saved episode produces a complete video file, keeping uploads efficient.
+连续自主记录，并定期上传到 Hugging Face Hub。片段边界会根据摄像头分辨率和 FPS 自动计算，使每个保存的片段生成完整的视频文件，保持上传效率。
 
-Policy state (hidden state, RTC queue) persists across episode boundaries: the robot does not reset between episodes.
+策略状态（隐藏状态、RTC 队列）在片段边界之间保持不变：机器人在片段之间不会重置。
 
 ```bash
 lerobot-rollout \
@@ -60,20 +60,20 @@ lerobot-rollout \
     --robot.port=/dev/ttyACM0 \
     --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
     --dataset.repo_id=${HF_USER}/rollout_eval_data \
-    --dataset.single_task="Put lego brick into the box" \
+    --dataset.single_task="将乐高积木放入盒子" \
     --duration=3600
 ```
 
-| Flag                                   | Description                                                 |
-| -------------------------------------- | ----------------------------------------------------------- |
-| `--strategy.upload_every_n_episodes`   | Push to Hub every N episodes (default: 5)                   |
-| `--strategy.target_video_file_size_mb` | Target video file size for episode rotation (default: auto) |
-| `--dataset.repo_id`                    | **Required.** Hub repository for the recorded dataset       |
-| `--dataset.push_to_hub`                | Whether to push to Hub on teardown (default: true)          |
+| 标志                                     | 描述                                       |
+| ---------------------------------------- | ----------------------------------------- |
+| `--strategy.upload_every_n_episodes`     | 每 N 个片段推送到 Hub（默认值：5）         |
+| `--strategy.target_video_file_size_mb`   | 片段轮换的目标视频文件大小（默认值：自动） |
+| `--dataset.repo_id`                      | **必需。**记录数据集的 Hub 仓库            |
+| `--dataset.push_to_hub`                  | 是否在结束时推送到 Hub（默认值：true）     |
 
-### Highlight (`--strategy.type=highlight`)
+### 高亮模式（`--strategy.type=highlight`）
 
-Autonomous rollout with on-demand recording via a memory-bounded ring buffer. The robot runs continuously while the buffer captures the last N seconds of telemetry. Press the save key to flush the buffer and start live recording; press it again to save the episode.
+通过内存有界环形缓冲区（ring buffer）实现按需记录的自主部署。机器人持续运行，同时缓冲区捕获最近 N 秒的遥测数据。按下保存键以刷新缓冲区并开始实时记录；再次按下以保存片段。
 
 ```bash
 lerobot-rollout \
@@ -85,31 +85,31 @@ lerobot-rollout \
     --robot.type=koch_follower \
     --robot.port=/dev/ttyACM0 \
     --dataset.repo_id=${HF_USER}/rollout_highlight_data \
-    --dataset.single_task="Pick up the red cube"
+    --dataset.single_task="拾取红色立方体"
 ```
 
-**Keyboard controls:**
+**键盘控制：**
 
-| Key                | Action                                                   |
-| ------------------ | -------------------------------------------------------- |
-| `s` (configurable) | Start recording (flushes buffer) / stop and save episode |
-| `h` (configurable) | Push dataset to Hub                                      |
-| `ESC`              | Stop the session                                         |
+| 键                   | 操作                             |
+| -------------------- | -------------------------------- |
+| `s`（可配置）        | 开始记录（刷新缓冲区）/ 停止并保存片段 |
+| `h`（可配置）        | 将数据集推送到 Hub                 |
+| `ESC`                | 停止会话                           |
 
-| Flag                                   | Description                                    |
-| -------------------------------------- | ---------------------------------------------- |
-| `--strategy.ring_buffer_seconds`       | Duration of buffered telemetry (default: 30)   |
-| `--strategy.ring_buffer_max_memory_mb` | Memory cap for the ring buffer (default: 2048) |
-| `--strategy.save_key`                  | Key to toggle recording (default: `s`)         |
-| `--strategy.push_key`                  | Key to push to Hub (default: `h`)              |
+| 标志                                     | 描述                                     |
+| ---------------------------------------- | --------------------------------------- |
+| `--strategy.ring_buffer_seconds`         | 缓冲遥测数据的持续时间（默认值：30）     |
+| `--strategy.ring_buffer_max_memory_mb`   | 环形缓冲区的内存上限（默认值：2048）     |
+| `--strategy.save_key`                    | 切换记录的按键（默认值：`s`）            |
+| `--strategy.push_key`                    | 推送到 Hub 的按键（默认值：`h`）         |
 
-### DAgger (`--strategy.type=dagger`)
+### DAgger 模式（`--strategy.type=dagger`）
 
-Human-in-the-loop data collection. Alternates between autonomous policy execution and human intervention via a teleoperator. Intervention frames are tagged with `intervention=True`. Requires a teleoperator (`--teleop.type`).
+人在回路中的数据收集。通过遥操作器在自主策略执行和人工干预之间交替。干预帧被标记为 `intervention=True`。需要一个遥操作器（`--teleop.type`）。
 
-See the [Human-In-the-Loop Data Collection](./hil_data_collection) guide for a detailed walkthrough.
+详细教程请参阅[人在回路数据收集指南](./hil_data_collection)。
 
-**Corrections-only mode** (default): Only human correction windows are recorded. Each correction becomes one episode.
+**仅纠正模式**（默认）：仅记录人工纠正窗口。每个纠正成为一个片段。
 
 ```bash
 lerobot-rollout \
@@ -119,10 +119,10 @@ lerobot-rollout \
     --robot.type=bi_openarm_follower \
     --teleop.type=bi_openarm_mini \
     --dataset.repo_id=${HF_USER}/rollout_hil_data \
-    --dataset.single_task="Fold the T-shirt"
+    --dataset.single_task="折叠 T 恤"
 ```
 
-**Continuous recording mode** (`--strategy.record_autonomous=true`): Both autonomous and correction frames are recorded with time-based episode rotation (same as Sentry).
+**连续记录模式**（`--strategy.record_autonomous=true`）：同时记录自主帧和纠正帧，基于时间进行片段轮换（与哨兵模式相同）。
 
 ```bash
 lerobot-rollout \
@@ -135,31 +135,31 @@ lerobot-rollout \
     --teleop.type=so101_leader \
     --teleop.port=/dev/ttyACM1 \
     --dataset.repo_id=${HF_USER}/rollout_dagger_data \
-    --dataset.single_task="Grasp the block"
+    --dataset.single_task="抓取积木"
 ```
 
-**Keyboard controls** (default input device):
+**键盘控制**（默认输入设备）：
 
-| Key     | Action                                      |
-| ------- | ------------------------------------------- |
-| `Space` | Pause / resume policy execution             |
-| `Tab`   | Start / stop human correction               |
-| `Enter` | Push dataset to Hub (corrections-only mode) |
-| `ESC`   | Stop the session                            |
+| 键       | 操作                            |
+| -------- | ------------------------------- |
+| `Space`  | 暂停 / 恢复策略执行              |
+| `Tab`    | 开始 / 停止人工纠正              |
+| `Enter`  | 将数据集推送到 Hub（仅纠正模式） |
+| `ESC`    | 停止会话                         |
 
-Foot pedal input is also supported via `--strategy.input_device=pedal`. Configure pedal codes with `--strategy.pedal.*` flags.
+也支持通过 `--strategy.input_device=pedal` 使用脚踏板输入。使用 `--strategy.pedal.*` 标志配置踏板编码。
 
-| Flag                                 | Description                                             |
-| ------------------------------------ | ------------------------------------------------------- |
-| `--strategy.num_episodes`            | Number of correction episodes to record (default: 10)   |
-| `--strategy.record_autonomous`       | Record autonomous frames too (default: false)           |
-| `--strategy.upload_every_n_episodes` | Push to Hub every N episodes (default: 5)               |
-| `--strategy.input_device`            | Input device: `keyboard` or `pedal` (default: keyboard) |
-| `--teleop.type`                      | **Required.** Teleoperator type                         |
+| 标志                                   | 描述                                              |
+| -------------------------------------- | ------------------------------------------------- |
+| `--strategy.num_episodes`              | 要记录的纠正片段数（默认值：10）                  |
+| `--strategy.record_autonomous`         | 是否也记录自主帧（默认值：false）                 |
+| `--strategy.upload_every_n_episodes`   | 每 N 个片段推送到 Hub（默认值：5）                |
+| `--strategy.input_device`              | 输入设备：`keyboard` 或 `pedal`（默认值：keyboard）|
+| `--teleop.type`                        | **必需。**遥操作器类型                            |
 
-### Episodic (`--strategy.type=episodic`)
+### 分段模式（`--strategy.type=episodic`）
 
-Episode-oriented recording that mirrors the behavior of `lerobot-record`. The policy drives the robot for each episode; an optional teleoperator can drive the robot during the reset phase between episodes.
+面向片段的记录，模拟 `lerobot-record` 的行为。策略在每个片段中驱动机器人；可选的遥操作器可以在片段之间的重置阶段驱动机器人。
 
 ```bash
 lerobot-rollout \
@@ -173,45 +173,45 @@ lerobot-rollout \
     --dataset.num_episodes=20 \
     --dataset.episode_time_s=30 \
     --dataset.reset_time_s=10 \
-    --dataset.single_task="Pick up the red cube"
+    --dataset.single_task="拾取红色立方体"
 ```
 
-Teleop is optional — if omitted the robot holds its position during the reset phase.
+遥操作器是可选的——如果省略，机器人在重置阶段保持其位置。
 
-**Keyboard controls:**
+**键盘控制：**
 
-| Key         | Action                           |
-| ----------- | -------------------------------- |
-| `→` (right) | End the current episode early    |
-| `←` (left)  | Discard episode and re-record it |
-| `ESC`       | Stop the recording session       |
+| 键              | 操作                  |
+| --------------- | --------------------- |
+| `→`（右箭头）   | 提前结束当前片段      |
+| `←`（左箭头）   | 丢弃片段并重新记录    |
+| `ESC`           | 停止记录会话          |
 
-| Flag                                            | Description                                                                |
-| ----------------------------------------------- | -------------------------------------------------------------------------- |
-| `--dataset.num_episodes`                        | Number of episodes to record                                               |
-| `--dataset.episode_time_s`                      | Duration of each recording episode in seconds                              |
-| `--dataset.reset_time_s`                        | Duration of the reset phase between episodes in seconds                    |
-| `--teleop.type`                                 | Optional. Teleoperator to drive the robot during resets                    |
-| `--strategy.reset_to_initial_position`          | Whether to reset the robot to its initial position between episodes        |
-| `--strategy.smooth_leader_to_follower_handover` | Whether to turn on or off the leader -> follower smooth handover behavior. |
+| 标志                                               | 描述                                                  |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| `--dataset.num_episodes`                           | 要记录的片段数                                        |
+| `--dataset.episode_time_s`                         | 每个记录片段的持续时间（秒）                          |
+| `--dataset.reset_time_s`                           | 片段之间重置阶段的持续时间（秒）                      |
+| `--teleop.type`                                    | 可选。在重置期间驱动机器人的遥操作器                  |
+| `--strategy.reset_to_initial_position`             | 是否在片段之间将机器人重置到初始位置                  |
+| `--strategy.smooth_leader_to_follower_handover`    | 是否启用或禁用从主臂到从臂的平滑交接行为              |
 
 ---
 
-## Inference Backends
+## 推理后端（Inference Backends）
 
-Select a backend with `--inference.type=<name>`. All strategies work with both backends.
+使用 `--inference.type=<name>` 选择推理后端。所有策略模式都可与两种后端配合使用。
 
-### Sync (default)
+### 同步模式（默认）
 
-One policy call per control tick. The main loop blocks until the action is computed.
+每个控制周期进行一次策略调用。主循环阻塞，直到动作计算完成。
 
-Works with all policies. No extra flags needed.
+适用于所有策略。无需额外标志。
 
-### Real-Time Chunking (`--inference.type=rtc`)
+### 实时分块（Real-Time Chunking，`--inference.type=rtc`）
 
-A background thread produces action chunks asynchronously. The main control loop polls for the next ready action while the policy computes the next chunk in parallel.
+后台线程异步产生动作块。主控制循环轮询下一个就绪的动作，同时策略并行计算下一个块。
 
-Use RTC with large, slow VLA models (Pi0, Pi0.5, SmolVLA) for smooth, continuous motion despite high inference latency.
+将 RTC 与大型、慢速的 VLA 模型（Pi0、Pi0.5、SmolVLA）一起使用，尽管推理延迟高，仍能实现平滑、连续的运动。
 
 ```bash
 lerobot-rollout \
@@ -223,46 +223,46 @@ lerobot-rollout \
     --robot.type=so100_follower \
     --robot.port=/dev/ttyACM0 \
     --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-    --task="Pick up the cube" \
+    --task="拾取立方体" \
     --duration=60 \
     --device=cuda
 ```
 
-| Flag                                        | Description                                                    |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| `--inference.rtc.execution_horizon`         | Steps to blend with previous chunk (default: varies by policy) |
-| `--inference.rtc.max_guidance_weight`       | Consistency enforcement strength (default: varies by policy)   |
-| `--inference.rtc.prefix_attention_schedule` | Blend schedule: `LINEAR`, `EXP`, `ONES`, `ZEROS`               |
-| `--inference.queue_threshold`               | Max queue size before backpressure (default: 30)               |
+| 标志                                            | 描述                                              |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `--inference.rtc.execution_horizon`             | 与上一个块混合的步数（默认值：因策略而异）        |
+| `--inference.rtc.max_guidance_weight`           | 一致性强制强度（默认值：因策略而异）              |
+| `--inference.rtc.prefix_attention_schedule`     | 混合调度：`LINEAR`、`EXP`、`ONES`、`ZEROS`        |
+| `--inference.queue_threshold`                   | 回压前的最大队列大小（默认值：30）                |
 
-See the [Real-Time Chunking](./rtc) guide for details on tuning RTC parameters.
-
----
-
-## Common Flags
-
-| Flag                              | Description                                                       | Default |
-| --------------------------------- | ----------------------------------------------------------------- | ------- |
-| `--policy.path`                   | **Required.** HF Hub model ID or local checkpoint path            | --      |
-| `--robot.type`                    | **Required.** Robot type (e.g. `so100_follower`, `koch_follower`) | --      |
-| `--robot.port`                    | Serial port for the robot                                         | --      |
-| `--robot.cameras`                 | Camera configuration (JSON dict)                                  | --      |
-| `--fps`                           | Control loop frequency                                            | 30      |
-| `--duration`                      | Run time in seconds (0 = infinite)                                | 0       |
-| `--device`                        | Torch device (`cpu`, `cuda`, `mps`)                               | auto    |
-| `--task`                          | Task description (used when no dataset is provided)               | --      |
-| `--display_data`                  | Stream telemetry to Rerun visualization                           | false   |
-| `--display_ip` / `--display_port` | Remote Rerun server address                                       | --      |
-| `--interpolation_multiplier`      | Action interpolation factor                                       | 1       |
-| `--use_torch_compile`             | Enable `torch.compile` for inference                              | false   |
-| `--resume`                        | Resume a previous recording session                               | false   |
-| `--play_sounds`                   | Vocal synthesis for events                                        | true    |
+有关调优 RTC 参数的详细信息，请参阅[实时分块指南](./rtc)。
 
 ---
 
-## Programmatic Usage
+## 通用标志
 
-For custom deployments (e.g. with kinematics processors), use the rollout module API directly:
+| 标志                                | 描述                                        | 默认值 |
+| ----------------------------------- | ------------------------------------------- | ------ |
+| `--policy.path`                     | **必需。**HF Hub 模型 ID 或本地检查点路径   | --     |
+| `--robot.type`                      | **必需。**机器人类型（如 `so100_follower`、`koch_follower`） | --     |
+| `--robot.port`                      | 机器人的串口                                | --     |
+| `--robot.cameras`                   | 摄像头配置（JSON 字典）                     | --     |
+| `--fps`                             | 控制循环频率                                | 30     |
+| `--duration`                        | 运行时间（秒），0 表示无限期运行             | 0      |
+| `--device`                          | Torch 设备（`cpu`、`cuda`、`mps`）          | auto   |
+| `--task`                            | 任务描述（未提供数据集时使用）               | --     |
+| `--display_data`                    | 将遥测数据流式传输到 Rerun 可视化            | false  |
+| `--display_ip` / `--display_port`   | 远程 Rerun 服务器地址                        | --     |
+| `--interpolation_multiplier`        | 动作插值因子                                | 1      |
+| `--use_torch_compile`               | 启用 `torch.compile` 进行推理               | false  |
+| `--resume`                          | 恢复之前的记录会话                          | false  |
+| `--play_sounds`                     | 事件的声音合成                              | true   |
+
+---
+
+## 编程式使用
+
+对于自定义部署（例如使用运动学处理器），可以直接使用 rollout 模块的 API：
 
 ```python
 from lerobot.rollout import BaseStrategyConfig, RolloutConfig, build_rollout_context
@@ -277,15 +277,15 @@ cfg = RolloutConfig(
     inference=SyncInferenceConfig(),
     fps=30,
     duration=60,
-    task="my task",
+    task="我的任务",
 )
 
 signal_handler = ProcessSignalHandler(use_threads=True)
 ctx = build_rollout_context(
     cfg,
     signal_handler.shutdown_event,
-    robot_action_processor=my_custom_action_processor,       # optional
-    robot_observation_processor=my_custom_obs_processor,     # optional
+    robot_action_processor=my_custom_action_processor,       # 可选
+    robot_observation_processor=my_custom_obs_processor,     # 可选
 )
 
 strategy = BaseStrategy(cfg.strategy)
@@ -296,4 +296,4 @@ finally:
     strategy.teardown(ctx)
 ```
 
-See `examples/so100_to_so100_EE/rollout.py` and `examples/phone_to_so100/rollout.py` for full examples with kinematics processors.
+有关包含运动学处理器的完整示例，请参阅 `examples/so100_to_so100_EE/rollout.py` 和 `examples/phone_to_so100/rollout.py`。

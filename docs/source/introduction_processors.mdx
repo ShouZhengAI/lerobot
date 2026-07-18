@@ -1,20 +1,20 @@
-# Introduction to Processors
+# 处理器（Processor）介绍
 
-In robotics, there's a fundamental mismatch between the data that robots and humans produce and what machine learning models expect.
-Robots output raw sensor data like camera images and joint positions that need normalization, batching, and device placement before models can process them.
-Language instructions from humans must be tokenized into numerical representations, and different robots use different coordinate systems that need standardization.
+在机器人学中，机器人和人类产生的数据与机器学习模型期望的数据之间存在根本性的不匹配。
+机器人输出的是原始的传感器数据，如摄像头图像和关节位置，这些数据需要经过归一化、批处理和设备放置之后，模型才能处理。
+来自人类的语言指令必须被分词（tokenize）为数值表示，而不同的机器人使用不同的坐标系，需要标准化。
 
-The challenge extends to model outputs as well.
-Models might output end-effector positions while robots need joint-space commands, or teleoperators produce relative movements while robots expect absolute commands.
-Model predictions are often normalized and need conversion back to real-world scales.
+模型输出也同样面临挑战。
+模型可能输出末端执行器位置，而机器人需要关节空间指令；遥操作器产生相对运动，而机器人期望绝对指令。
+模型预测通常是归一化的，需要转换回真实的物理尺度。
 
-Cross-domain translation adds another layer of complexity.
-Training data from one robot setup needs adaptation for deployment on different hardware, models trained with specific camera configurations must work with new arrangements, and datasets with different naming conventions need harmonization.
+跨领域转换则增加了另一层复杂性。
+来自某台机器人的训练数据需要适配才能部署到不同的硬件上，使用特定摄像头配置训练的模型必须能适应新的布局，具有不同命名约定的数据集也需要协调统一。
 
-**That's where processors come in.** They serve as universal translators that bridge these gaps, ensuring seamless data flow from sensors to models to actuators.
-Processors handle all the preprocessing and postprocessing steps needed to convert raw environment data into model-ready inputs and vice versa.
+**处理器（Processor）就是为此而生的。** 它们充当通用翻译器，弥合这些差距，确保数据从传感器到模型再到执行器的无缝流动。
+处理器处理所有所需的预处理和后处理步骤，将原始环境数据转换为模型可用的输入，反之亦然。
 
-This means that your favorite policy can be used like this:
+这意味着你喜欢的策略（policy）可以这样使用：
 
 ```python
 import torch
@@ -38,212 +38,212 @@ action = model.select_action(preprocessed_sample)
 postprocessed_action = postprocessor(action)
 ```
 
-## What are Processors?
+## 什么是处理器？
 
-In robotics, data comes in many forms: images from cameras, joint positions from sensors, text instructions from users, and more. Each type of data requires specific transformations before a model can use it effectively. Models need this data to be:
+在机器人学中，数据以多种形式存在：来自摄像头的图像、来自传感器的关节位置、来自用户的文本指令等等。每种类型的数据在模型有效使用之前都需要特定的转换。模型需要数据满足以下条件：
 
-- **Normalized**: Scaled to appropriate ranges for neural network processing
-- **Batched**: Organized with proper dimensions for batch processing
-- **Tokenized**: Text converted to numerical representations
-- **Device-placed**: Moved to the right hardware (CPU/GPU)
-- **Type-converted**: Cast to appropriate data types
+- **归一化（Normalized）**：缩放到适合神经网络处理的范围
+- **批处理（Batched）**：以正确的维度组织用于批量处理
+- **分词（Tokenized）**：文本转换为数值表示
+- **设备放置（Device-placed）**：移动到正确的硬件（CPU/GPU）
+- **类型转换（Type-converted）**：转换为适当的数据类型
 
-Processors handle these transformations through composable, reusable steps that can be chained together into pipelines. Think of them as a modular assembly line where each station performs a specific transformation on your data.
+处理器通过可组合、可复用的步骤来处理这些转换，这些步骤可以链式组合成流水线（pipeline）。可以将它们想象成一个模块化的装配线，每个工位对数据执行特定的转换。
 
-## Core Concepts
+## 核心概念
 
-### EnvTransition: The Universal Data Container
+### EnvTransition：通用数据容器
 
-The `EnvTransition` is the fundamental data structure that flows through all processors.
-It's a typed dictionary that represents a complete robot-environment interaction:
+`EnvTransition` 是流经所有处理器的基础数据结构。
+它是一个类型化的字典，表示完整的机器人-环境交互：
 
-- **OBSERVATION**: All sensor data (images, states, proprioception)
-- **ACTION**: The action to execute or that was executed
-- **REWARD**: Reinforcement learning signal
-- **DONE/TRUNCATED**: Episode boundary indicators
-- **INFO**: Arbitrary metadata
-- **COMPLEMENTARY_DATA**: Task descriptions, indices, padding flags, inter-step data
+- **OBSERVATION**：所有传感器数据（图像、状态、本体感知）
+- **ACTION**：要执行或已执行的动作
+- **REWARD**：强化学习信号
+- **DONE/TRUNCATED**：回合边界指示器
+- **INFO**：任意元数据
+- **COMPLEMENTARY_DATA**：任务描述、索引、填充标志、步间数据
 
-### ProcessorStep: The Building Block
+### ProcessorStep：构建模块
 
-A `ProcessorStep` is a single transformation unit that processes transitions. It's an abstract base class with two required methods:
+`ProcessorStep` 是处理转换的单一单元。它是一个抽象基类，包含两个必需的方法：
 
 ```python
 from lerobot.processor import ProcessorStep, EnvTransition
 
 class MyProcessorStep(ProcessorStep):
-    """Example processor step - inherit and implement abstract methods."""
+    """示例处理器步骤——继承并实现抽象方法。"""
 
     def __call__(self, transition: EnvTransition) -> EnvTransition:
-        """Transform the transition - REQUIRED abstract method."""
-        # Your processing logic here
+        """转换过渡数据——必需的抽象方法。"""
+        # 你的处理逻辑放在这里
         return transition
 
     def transform_features(self, features):
-        """Declare how this step transforms feature shapes/types - REQUIRED abstract method."""
-        return features  # Most processors return features unchanged
+        """声明此步骤如何转换特征形状/类型——必需的抽象方法。"""
+        return features  # 大多数处理器步骤不改变特征
 ```
 
-`__call__` is the core of your processor step. It takes an `EnvTransition` and returns a modified `EnvTransition`.
+`__call__` 是处理器步骤的核心。它接收一个 `EnvTransition` 并返回修改后的 `EnvTransition`。
 
-`transform_features` is used to declare how this step transforms feature shapes/types.
+`transform_features` 用于声明此步骤如何转换特征形状/类型。
 
-### DataProcessorPipeline: The Generic Orchestrator
+### DataProcessorPipeline：通用编排器
 
-The `DataProcessorPipeline[TInput, TOutput]` chains multiple `ProcessorStep` instances together:
+`DataProcessorPipeline[TInput, TOutput]` 将多个 `ProcessorStep` 实例串联在一起：
 
 ```python
 from lerobot.processor import RobotProcessorPipeline, PolicyProcessorPipeline
 
-# For robot hardware (unbatched data)
+# 用于机器人硬件（非批处理数据）
 robot_processor = RobotProcessorPipeline[RobotAction, RobotAction](
     steps=[step1, step2, step3],
     name="robot_pipeline"
 )
 
-# For model training/inference (batched data)
+# 用于模型训练/推理（批处理数据）
 policy_processor = PolicyProcessorPipeline[dict[str, Any], dict[str, Any]](
     steps=[step1, step2, step3],
     name="policy_pipeline"
 )
 ```
 
-## RobotProcessorPipeline vs PolicyProcessorPipeline
+## RobotProcessorPipeline 与 PolicyProcessorPipeline 的区别
 
-The key distinction is in the data structures they handle:
+关键区别在于它们处理的数据结构：
 
-| Aspect          | RobotProcessorPipeline                       | PolicyProcessorPipeline                  |
-| --------------- | -------------------------------------------- | ---------------------------------------- |
-| **Input**       | `dict[str, Any]` - Individual robot values   | `dict[str, Any]` - Batched tensors       |
-| **Output**      | `dict[str, Any]` - Individual robot commands | `torch.Tensor` - Policy predictions      |
-| **Use Case**    | Real-time robot control                      | Model training/inference                 |
-| **Data Format** | Unbatched, heterogeneous                     | Batched, homogeneous                     |
-| **Examples**    | `{"joint_1": 0.5}`                           | `{"observation.state": tensor([[0.5]])}` |
+| 方面           | RobotProcessorPipeline                     | PolicyProcessorPipeline                   |
+| -------------- | ------------------------------------------ | ----------------------------------------- |
+| **输入**       | `dict[str, Any]` - 单个机器人值            | `dict[str, Any]` - 批处理张量             |
+| **输出**       | `dict[str, Any]` - 单个机器人指令          | `torch.Tensor` - 策略预测                 |
+| **使用场景**   | 实时机器人控制                              | 模型训练/推理                             |
+| **数据格式**   | 非批处理、异构                              | 批处理、同构                              |
+| **示例**       | `{"joint_1": 0.5}`                        | `{"observation.state": tensor([[0.5]])}` |
 
-**Use `RobotProcessorPipeline`** for robot hardware interfaces:
+**使用 `RobotProcessorPipeline`** 处理机器人硬件接口：
 
 ```python
-# Robot data structures: dict[str, Any] for observations and actions
+# 机器人数据结构：观测和动作为 dict[str, Any]
 robot_obs: dict[str, Any] = {
-    "joint_1": 0.5,           # Individual joint values
+    "joint_1": 0.5,           # 单个关节值
     "joint_2": -0.3,
-    "camera_0": image_array   # Raw camera data
+    "camera_0": image_array   # 原始摄像头数据
 }
 
 robot_action: dict[str, Any] = {
-    "joint_1": 0.2,          # Target joint positions
+    "joint_1": 0.2,          # 目标关节位置
     "joint_2": 0.1,
     "gripper": 0.8
 }
 ```
 
-**Use `PolicyProcessorPipeline`** for model training and batch processing:
+**使用 `PolicyProcessorPipeline`** 进行模型训练和批处理：
 
 ```python
-# Policy data structures: batch dicts and tensors
+# 策略数据结构：批量字典和张量
 policy_batch: dict[str, Any] = {
-    "observation.state": torch.tensor([[0.5, -0.3]]),      # Batched states
-    "observation.images.camera0": torch.tensor(...),        # Batched images
-    "action": torch.tensor([[0.2, 0.1, 0.8]])              # Batched actions
+    "observation.state": torch.tensor([[0.5, -0.3]]),      # 批处理状态
+    "observation.images.camera0": torch.tensor(...),        # 批处理图像
+    "action": torch.tensor([[0.2, 0.1, 0.8]])              # 批处理动作
 }
 
-policy_action: torch.Tensor = torch.tensor([[0.2, 0.1, 0.8]])  # Model output tensor
+policy_action: torch.Tensor = torch.tensor([[0.2, 0.1, 0.8]])  # 模型输出张量
 ```
 
-## Converter Functions
+## 转换器函数（Converter Functions）
 
-LeRobot provides converter functions to bridge different data formats in `lerobot.processor.converters`. These functions handle the crucial translations between robot hardware data structures, policy model formats, and the internal `EnvTransition` representation that flows through processor pipelines.
+LeRobot 在 `lerobot.processor.converters` 中提供了转换器函数，用于桥接不同的数据格式。这些函数处理机器人硬件数据结构、策略模型格式和流经处理器流水线的内部 `EnvTransition` 表示之间的关键转换。
 
-| Category                       | Function                      | Description                     |
-| ------------------------------ | ----------------------------- | ------------------------------- |
-| **Robot Hardware Converters**  | `robot_action_to_transition`  | Robot dict → EnvTransition      |
-|                                | `observation_to_transition`   | Robot obs → EnvTransition       |
-|                                | `transition_to_robot_action`  | EnvTransition → Robot dict      |
-| **Policy/Training Converters** | `batch_to_transition`         | Batch dict → EnvTransition      |
-|                                | `transition_to_batch`         | EnvTransition → Batch dict      |
-|                                | `policy_action_to_transition` | Policy tensor → EnvTransition   |
-|                                | `transition_to_policy_action` | EnvTransition → Policy tensor   |
-| **Utilities**                  | `create_transition`           | Build transitions with defaults |
-|                                | `identity_transition`         | Pass-through converter          |
+| 类别                           | 函数                            | 描述                          |
+| ------------------------------ | ------------------------------- | ----------------------------- |
+| **机器人硬件转换器**           | `robot_action_to_transition`    | 机器人字典 → EnvTransition    |
+|                                | `observation_to_transition`     | 机器人观测 → EnvTransition    |
+|                                | `transition_to_robot_action`    | EnvTransition → 机器人字典    |
+| **策略/训练转换器**           | `batch_to_transition`           | 批量字典 → EnvTransition      |
+|                                | `transition_to_batch`           | EnvTransition → 批量字典      |
+|                                | `policy_action_to_transition`   | 策略张量 → EnvTransition      |
+|                                | `transition_to_policy_action`   | EnvTransition → 策略张量      |
+| **工具函数**                   | `create_transition`             | 使用默认值构建过渡数据         |
+|                                | `identity_transition`           | 直通转换器                    |
 
-The key insight is that **robot hardware converters** work with individual values and dictionaries, while **policy/training converters** work with batched tensors and model outputs. The converter functions automatically handle the structural differences, so your processor steps can focus on the core transformations without worrying about data format compatibility.
+关键要点是：**机器人硬件转换器**处理单个值和字典，而**策略/训练转换器**处理批处理张量和模型输出。转换器函数自动处理结构差异，因此你的处理器步骤可以专注于核心转换，而无需担心数据格式兼容性问题。
 
-## Processor Examples
+## 处理器示例
 
-The following examples demonstrate real-world processor configurations for policy training and inference.
+以下示例展示了用于策略训练和推理的真实处理器配置。
 
-Here is an example processor for policy training and inference:
+这是一个用于策略训练和推理的处理器示例：
 
 ```python
-# Training data preprocessing (optimized order for GPU performance)
+# 训练数据预处理（针对 GPU 性能优化的顺序）
 training_preprocessor = PolicyProcessorPipeline[dict[str, Any], dict[str, Any]](
     steps=[
-        RenameObservationsProcessorStep(rename_map={}),     # Standardize keys
-        AddBatchDimensionProcessorStep(),                   # Add batch dims
-        TokenizerProcessorStep(tokenizer_name="...", ...),  # Tokenize language
-        DeviceProcessorStep(device="cuda"),                 # Move to GPU first
-        NormalizerProcessorStep(features=..., stats=...),   # Normalize on GPU
+        RenameObservationsProcessorStep(rename_map={}),     # 标准化键名
+        AddBatchDimensionProcessorStep(),                   # 添加批次维度
+        TokenizerProcessorStep(tokenizer_name="...", ...),  # 分词语言指令
+        DeviceProcessorStep(device="cuda"),                 # 先移到 GPU
+        NormalizerProcessorStep(features=..., stats=...),   # 在 GPU 上归一化
     ]
 )
 
-# Model output postprocessing
+# 模型输出后处理
 training_postprocessor = PolicyProcessorPipeline[torch.Tensor, torch.Tensor](
     steps=[
-        DeviceProcessorStep(device="cpu"),                  # Move to CPU
-        UnnormalizerProcessorStep(features=..., stats=...), # Denormalize
+        DeviceProcessorStep(device="cpu"),                  # 移到 CPU
+        UnnormalizerProcessorStep(features=..., stats=...), # 反归一化
     ]
     to_transition=policy_action_to_transition,
     to_output=transition_to_policy_action,
 )
 ```
 
-### An interaction between a robot and a policy with processors
+### 机器人通过处理器与策略交互
 
-The most common real-world scenario combines both pipeline types robot hardware generates observations that need policy processing, and policy outputs need robot-compatible postprocessing:
+最常见的实际场景结合了两种流水线类型——机器人硬件产生的观测需要策略处理，策略输出需要机器人兼容的后处理：
 
 ```python
-# Real deployment: Robot sensors → Model → Robot commands
+# 实际部署：机器人传感器 → 模型 → 机器人指令
 with torch.no_grad():
     while not done:
         raw_obs = robot.get_observation()  # dict[str, Any]
 
-        # Add your robot observation to policy observation processor
+        # 将你的机器人观测添加到策略观测处理器
 
-        policy_input = policy_preprocessor(raw_obs)  # Batched dict
+        policy_input = policy_preprocessor(raw_obs)  # 批处理后的字典
 
-        policy_output = policy.select_action(policy_input)  # Policy tensor
+        policy_output = policy.select_action(policy_input)  # 策略张量
 
         policy_action = policy_postprocessor(policy_output)
 
-        # Add your robot action to policy action processor
+        # 将你的机器人动作添加到策略动作处理器
 
         robot.send_action(policy_action)
 ```
 
-## Feature Contracts: Shape and Type Transformation
+## 特征契约：形状和类型转换
 
-Processors don't just transform data - they can also **change the data structure itself**. The `transform_features()` method declares these changes, which is crucial for dataset recording and policy creation.
+处理器不仅可以转换数据，还可以**改变数据结构本身**。`transform_features()` 方法声明了这些变化，这对于数据集记录和策略创建至关重要。
 
-### Why Feature Contracts Matter
+### 为什么特征契约很重要
 
-When building datasets or policies, LeRobot needs to know:
+在构建数据集或策略时，LeRobot 需要知道：
 
-- **What data fields will exist** after processing
-- **What shapes and types** each field will have
-- **How to configure models** for the expected data structure
+- **处理后将有**哪些数据字段
+- **每个字段的形状和类型**
+- **如何为预期的数据结构配置模型**
 
 ```python
-# Example: A processor that adds velocity to observations
+# 示例：为观测添加速度的处理器
 class VelocityProcessor(ObservationProcessorStep):
     def observation(self, obs):
         new_obs = obs.copy()
         if "observation.state" in obs:
-            # concatenate computed velocity field to the state
+            # 将计算出的速度字段拼接到状态中
             new_obs["observation.state"] = self._compute_velocity(obs["observation.state"])
         return new_obs
 
     def transform_features(self, features):
-        """Declare the new velocity field we're adding."""
+        """声明我们正在添加的新速度字段。"""
         state_feature = features[PipelineFeatureType.OBSERVATION].get("observation.state")
         if state_feature:
             double_shape = (state_feature.shape[0] * 2,) if state_feature.shape else (2,)
@@ -253,62 +253,62 @@ class VelocityProcessor(ObservationProcessorStep):
         return features
 ```
 
-### Feature Specification Functions
+### 特征规范函数
 
-`create_initial_features()` and `aggregate_pipeline_dataset_features()` solve a critical dataset creation problem: determining the exact final data structure before any data is processed.
-Since processor pipelines can add new features (like velocity fields), change tensor shapes (like cropping images), or rename keys, datasets need to know the complete output specification upfront to allocate proper storage and define schemas.
-These functions work together by starting with robot hardware specifications (`create_initial_features()`) then simulating the entire pipeline transformation (`aggregate_pipeline_dataset_features()`) to compute the final feature dictionary that gets passed to `LeRobotDataset.create()`, ensuring perfect alignment between what processors output and what datasets expect to store.
+`create_initial_features()` 和 `aggregate_pipeline_dataset_features()` 解决了一个关键的数据集创建问题：在处理任何数据之前，确定精确的最终数据结构。
+由于处理器流水线可以添加新特征（如速度字段）、更改张量形状（如裁剪图像）或重命名键，数据集需要提前知道完整的输出规范，以便分配适当的存储空间和定义模式。
+这些函数协同工作：从机器人硬件规格开始（`create_initial_features()`），然后模拟整个流水线转换（`aggregate_pipeline_dataset_features()`），计算出最终的特征字典，传递给 `LeRobotDataset.create()`，确保处理器输出和数据集期望存储的内容之间完美对齐。
 
 ```python
 from lerobot.datasets import aggregate_pipeline_dataset_features
 
-# Start with robot's raw features
+# 从机器人的原始特征开始
 initial_features = create_initial_features(
     observation=robot.observation_features,  # {"joint_1.pos": float, "camera_0": (480,640,3)}
     action=robot.action_features            # {"joint_1.pos": float, "gripper.pos": float}
 )
 
-# Apply processor pipeline to compute final features
+# 应用处理器流水线计算最终特征
 final_features = aggregate_pipeline_dataset_features(
     pipeline=my_processor_pipeline,
     initial_features=initial_features,
     use_videos=True
 )
 
-# Use for dataset creation
+# 用于数据集创建
 dataset = LeRobotDataset.create(
     repo_id="my_dataset",
-    features=final_features,  # Knows exactly what data to expect
+    features=final_features,  # 精确知道期望的数据格式
     ...
 )
 ```
 
-## Common Processor Steps
+## 常用处理器步骤
 
-LeRobot provides many registered processor steps. Here are the most commonly used core processors:
+LeRobot 提供了许多已注册的处理器步骤。以下是最常用的核心处理器：
 
-### Essential Processors
+### 基本处理器
 
-- **`normalizer_processor`**: Normalize observations/actions using dataset statistics (mean/std or min/max)
-- **`device_processor`**: Move tensors to CPU/GPU with optional dtype conversion
-- **`to_batch_processor`**: Add batch dimensions to transitions for model compatibility
-- **`rename_observations_processor`**: Rename observation keys using mapping dictionaries
-- **`tokenizer_processor`**: Tokenize natural language task descriptions into tokens and attention masks
+- **`normalizer_processor`**：使用数据集统计信息（均值/标准差或最小值/最大值）归一化观测和动作
+- **`device_processor`**：将张量移动到 CPU/GPU，并可选择进行数据类型转换
+- **`to_batch_processor`**：为过渡数据添加批次维度以适配模型
+- **`rename_observations_processor`**：使用映射字典重命名观测键
+- **`tokenizer_processor`**：将自然语言任务描述分词为 token 和注意力掩码
 
-### Next Steps
+### 下一步
 
-- **[Implement Your Own Processor](./implement_your_own_processor)** - Create custom processor steps
-- **[Debug Your Pipeline](./debug_processor_pipeline)** - Troubleshoot and optimize pipelines
-- **[Processors for Robots and Teleoperators](./processors_robots_teleop)** - Real-world integration patterns
+- **[实现你自己的处理器](./implement_your_own_processor)** —— 创建自定义处理器步骤
+- **[调试你的流水线](./debug_processor_pipeline)** —— 排查和优化流水线
+- **[用于机器人和遥操作器的处理器](./processors_robots_teleop)** —— 实际集成模式
 
-## Summary
+## 总结
 
-Processors solve the data translation problem in robotics by providing:
+处理器通过以下方式解决机器人领域的数据转换问题：
 
-- **Modular transformations**: Composable, reusable processing steps
-- **Type safety**: Generic pipelines with compile-time checking
-- **Performance optimization**: GPU-accelerated operations
-- **Robot/Policy distinction**: Separate pipelines for different data structures
-- **Comprehensive ecosystem**: 30+ registered processors for common tasks
+- **模块化转换**：可组合、可复用的处理步骤
+- **类型安全**：带编译时检查的泛型流水线
+- **性能优化**：GPU 加速操作
+- **机器人/策略区分**：针对不同数据结构的独立流水线
+- **全面的生态系统**：30+ 个用于常见任务的已注册处理器
 
-The key insight: `RobotProcessorPipeline` handles unbatched robot hardware data, while `PolicyProcessorPipeline` handles batched model data. Choose the right tool for your data structure!
+关键要点：`RobotProcessorPipeline` 处理非批处理的机器人硬件数据，而 `PolicyProcessorPipeline` 处理批处理的模型数据。根据你的数据结构选择合适的工具！

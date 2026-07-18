@@ -1,29 +1,29 @@
 # SO-100
 
-In the steps below, we explain how to assemble the SO-100 robot.
+以下步骤说明如何组装 SO-100 机器人。
 
-## Source the parts
+## 获取零件
 
-Follow this [README](https://github.com/TheRobotStudio/SO-ARM100/blob/main/SO100.md). It contains the bill of materials, with a link to source the parts, as well as the instructions to 3D print the parts. And advise if it's your first time printing or if you don't own a 3D printer.
+请参考此 [README](https://github.com/TheRobotStudio/SO-ARM100/blob/main/SO100.md) 文档。其中包含物料清单、零件采购链接以及 3D 打印零件的说明。如果你是第一次打印或没有 3D 打印机，文档也提供了相关建议。
 
-## Install LeRobot 🤗
+## 安装 LeRobot 🤗
 
-To install LeRobot, follow our [Installation Guide](./installation)
+安装 LeRobot，请按照我们的[安装指南](./installation)进行操作。
 
-In addition to these instructions, you need to install the Feetech SDK:
+除上述说明外，你还需要安装 Feetech SDK：
 
 ```bash
 pip install -e ".[feetech]"
 ```
 
-## Configure the motors
+## 配置电机
 
-**Note:**
-Unlike the SO-101, the motor connectors are not easily accessible once the arm is assembled, so the configuration step must be done beforehand.
+**注意：**
+与 SO-101 不同，SO-100 的电机连接器在手臂组装完成后不易接触，因此配置步骤必须提前完成。
 
-### 1. Find the USB ports associated with each arm
+### 1. 找到每个手臂对应的 USB 端口
 
-To find the port for each bus servo adapter, run this script:
+要找到每个总线舵机适配器的端口，请运行以下脚本：
 
 ```bash
 lerobot-find-port
@@ -32,74 +32,74 @@ lerobot-find-port
 <hfoptions id="example">
 <hfoption id="Mac">
 
-Example output:
+示例输出：
 
 ```
 Finding all available ports for the MotorBus.
 ['/dev/tty.usbmodem575E0032081', '/dev/tty.usbmodem575E0031751']
 Remove the USB cable from your MotorsBus and press Enter when done.
 
-[...Disconnect corresponding leader or follower arm and press Enter...]
+[...断开对应的主臂或从臂连接，然后按 Enter...]
 
 The port of this MotorsBus is /dev/tty.usbmodem575E0032081
 Reconnect the USB cable.
 ```
 
-Where the found port is: `/dev/tty.usbmodem575E0032081` corresponding to your leader or follower arm.
+找到的端口为：`/dev/tty.usbmodem575E0032081`，对应你的主臂或从臂。
 
 </hfoption>
 <hfoption id="Linux">
 
-On Linux, you might need to give access to the USB ports by running:
+在 Linux 上，你可能需要运行以下命令来授予 USB 端口访问权限：
 
 ```bash
 sudo chmod 666 /dev/ttyACM0
 sudo chmod 666 /dev/ttyACM1
 ```
 
-Example output:
+示例输出：
 
 ```
 Finding all available ports for the MotorBus.
 ['/dev/ttyACM0', '/dev/ttyACM1']
 Remove the usb cable from your MotorsBus and press Enter when done.
 
-[...Disconnect corresponding leader or follower arm and press Enter...]
+[...断开对应的主臂或从臂连接，然后按 Enter...]
 
 The port of this MotorsBus is /dev/ttyACM1
 Reconnect the USB cable.
 ```
 
-Where the found port is: `/dev/ttyACM1` corresponding to your leader or follower arm.
+找到的端口为：`/dev/ttyACM1`，对应你的主臂或从臂。
 
 </hfoption>
 </hfoptions>
 
-### 2. Set the motors ids and baudrates
+### 2. 设置电机 ID 和波特率
 
-Each motor is identified by a unique id on the bus. When brand new, motors usually come with a default id of `1`. For the communication to work properly between the motors and the controller, we first need to set a unique, different id to each motor. Additionally, the speed at which data is transmitted on the bus is determined by the baudrate. In order to talk to each other, the controller and all the motors need to be configured with the same baudrate.
+每个电机在总线上通过唯一的 ID 进行标识。新电机出厂时通常默认 ID 为 `1`。为了使电机与控制器之间的通信正常工作，我们首先需要为每个电机设置不同的唯一 ID。此外，数据的传输速度由波特率决定。为了实现通信，控制器和所有电机需要配置相同的波特率。
 
-To that end, we first need to connect to each motor individually with the controller in order to set these. Since we will write these parameters in the non-volatile section of the motors' internal memory (EEPROM), we'll only need to do this once.
+为此，我们需要先使用控制器单独连接每个电机来设置这些参数。由于我们会将这些参数写入电机内存的非易失性区域（EEPROM），因此只需执行一次。
 
-If you are repurposing motors from another robot, you will probably also need to perform this step as the ids and baudrate likely won't match.
+如果你是从其他机器人上重新利用电机，很可能也需要执行此步骤，因为原有的 ID 和波特率很可能不匹配。
 
-#### Follower
+#### 从臂
 
-Connect the usb cable from your computer and the power supply to the follower arm's controller board. Then, run the following command or run the API example with the port you got from the previous step. You'll also need to give your leader arm a name with the `id` parameter.
+将计算机的 USB 线和电源连接到从臂的控制板。然后，运行以下命令或使用上一步得到的端口运行 API 示例。你还需要使用 `id` 参数为主臂命名。
 
-For a visual reference on how to set the motor ids please refer to [this video](https://huggingface.co/docs/lerobot/en/so101#setup-motors-video) where we follow the process for the SO101 arm.
+关于如何设置电机 ID 的视觉参考，请参阅[此视频](https://huggingface.co/docs/lerobot/en/so101#setup-motors-video)，其中我们演示了 SO101 手臂的设置过程。
 
 <hfoptions id="setup_motors">
-<hfoption id="Command">
+<hfoption id="命令">
 
 ```bash
 lerobot-setup-motors \
     --robot.type=so100_follower \
-    --robot.port=/dev/tty.usbmodem585A0076841  # <- paste here the port found at previous step
+    --robot.port=/dev/tty.usbmodem585A0076841  # <- 在此粘贴上一步找到的端口
 ```
 
 </hfoption>
-<hfoption id="API example">
+<hfoption id="API 示例">
 
 <!-- prettier-ignore-start -->
 ```python
@@ -117,63 +117,63 @@ follower.setup_motors()
 </hfoption>
 </hfoptions>
 
-You should see the following instruction
+你应该会看到以下提示：
 
 ```
 Connect the controller board to the 'gripper' motor only and press enter.
 ```
 
-As instructed, plug the gripper's motor. Make sure it's the only motor connected to the board, and that the motor itself is not yet daisy-chained to any other motor. As you press `[Enter]`, the script will automatically set the id and baudrate for that motor.
+按照提示，仅插入夹爪电机。确保该电机是唯一连接到控制板的电机，并且电机本身尚未与其他任何电机菊花链连接。当你按下 `[Enter]` 后，脚本将自动设置该电机的 ID 和波特率。
 
 <details>
-<summary>Troubleshooting</summary>
+<summary>故障排除</summary>
 
-If you get an error at that point, check your cables and make sure they are plugged in properly:
+如果此时出现错误，请检查线缆是否连接正确：
 
 <ul>
-  <li>Power supply</li>
-  <li>USB cable between your computer and the controller board</li>
-  <li>The 3-pin cable from the controller board to the motor</li>
+  <li>电源</li>
+  <li>计算机与控制板之间的 USB 线</li>
+  <li>从控制板到电机的 3 针线缆</li>
 </ul>
 
-If you are using a Waveshare controller board, make sure that the two jumpers are set on the `B` channel (USB).
+如果你使用的是 Waveshare 控制板，请确保两个跳线都设置在 `B` 通道（USB）上。
 
 </details>
 
-You should then see the following message:
+然后你应该会看到以下消息：
 
 ```
 'gripper' motor id set to 6
 ```
 
-Followed by the next instruction:
+接着是下一步提示：
 
 ```
 Connect the controller board to the 'wrist_roll' motor only and press enter.
 ```
 
-You can disconnect the 3-pin cable from the controller board, but you can leave it connected to the gripper motor on the other end, as it will already be in the right place. Now, plug in another 3-pin cable to the wrist roll motor and connect it to the controller board. As with the previous motor, make sure it is the only motor connected to the board and that the motor itself isn't connected to any other one.
+你可以将 3 针线缆从控制板上断开，但可以将其另一端留在夹爪电机上，因为它已经安装在正确位置。现在，将另一根 3 针线缆插入腕部旋转电机并连接到控制板。与上一个电机一样，确保它是唯一连接到控制板的电机，并且该电机本身未连接任何其他电机。
 
-Repeat the operation for each motor as instructed.
+按提示为每个电机重复此操作。
 
 > [!TIP]
-> Check your cabling at each step before pressing Enter. For instance, the power supply cable might disconnect as you manipulate the board.
+> 在每个步骤按 Enter 之前检查一下线缆。例如，在操作控制板时，电源线可能会意外断开。
 
-When you are done, the script will simply finish, at which point the motors are ready to be used. You can now plug the 3-pin cable from each motor to the next one, and the cable from the first motor (the 'shoulder pan' with id=1) to the controller board, which can now be attached to the base of the arm.
+完成后，脚本将自动结束，此时电机即可正常使用。现在，你可以将每个电机的 3 针线缆依次连接到下一个电机，并将第一个电机（ID=1 的'肩部旋转'电机）的线缆连接到控制板，然后将控制板安装到手臂底座。
 
-#### Leader
+#### 主臂
 
-Do the same steps for the leader arm.
+对主臂执行相同步骤。
 
 <hfoptions id="setup_motors">
-<hfoption id="Command">
+<hfoption id="命令">
 ```bash
 lerobot-setup-motors \
     --teleop.type=so100_leader \
-    --teleop.port=/dev/tty.usbmodem575E0031751  # <- paste here the port found at previous step
+    --teleop.port=/dev/tty.usbmodem575E0031751  # <- 在此粘贴上一步找到的端口
 ```
 </hfoption>
-<hfoption id="API example">
+<hfoption id="API 示例">
 
 <!-- prettier-ignore-start -->
 ```python
@@ -191,12 +191,12 @@ leader.setup_motors()
 </hfoption>
 </hfoptions>
 
-## Step-by-Step Assembly Instructions
+## 分步组装说明
 
-## Remove the gears of the 6 leader motors
+## 拆卸 6 个主臂电机的齿轮
 
 <details>
-<summary><strong>Video removing gears</strong></summary>
+<summary><strong>拆卸齿轮视频</strong></summary>
 
 <div class="video-container">
   <video controls width="600">
@@ -209,16 +209,16 @@ leader.setup_motors()
 
 </details>
 
-Follow the video for removing gears. You need to remove the gear for the motors of the leader arm. As a result, you will only use the position encoding of the motor and reduce friction to more easily operate the leader arm.
+请按照视频说明拆卸齿轮。你需要拆下主臂电机的齿轮。这样，你将只使用电机的位置编码功能，并减少摩擦，从而更容易操作主臂。
 
-### Clean Parts
+### 清洁零件
 
-Remove all support material from the 3D-printed parts. The easiest way to do this is using a small screwdriver to get underneath the support material.
+清除 3D 打印零件上的所有支撑材料。最简单的方法是使用小螺丝刀撬开支撑材料。
 
-### Additional Guidance
+### 额外指导
 
 <details>
-<summary><strong>Video assembling arms</strong></summary>
+<summary><strong>手臂组装视频</strong></summary>
 
 <div class="video-container">
   <video controls width="600">
@@ -231,47 +231,47 @@ Remove all support material from the 3D-printed parts. The easiest way to do thi
 
 </details>
 
-**Note:**
-This video provides visual guidance for assembling the arms, but it doesn't specify when or how to do the wiring. Inserting the cables beforehand is much easier than doing it afterward. The first arm may take a bit more than 1 hour to assemble, but once you get used to it, you can assemble the second arm in under 1 hour.
+**注意：**
+此视频为组装手臂提供了视觉指导，但未说明何时或如何进行布线。预先插入线缆比之后再做要容易得多。第一只手臂的组装可能需要稍超过 1 小时，但一旦熟悉了流程，你可以在 1 小时内完成第二只手臂的组装。
 
 ---
 
-### First Motor
+### 第一个电机
 
-**Step 2: Insert Wires**
+**步骤 2：插入线缆**
 
-- Insert two wires into the first motor.
+- 为第一个电机插入两根线缆。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_1.webp"
   style="height:300px;"
 />
 
-**Step 3: Install in Base**
+**步骤 3：安装到底座**
 
-- Place the first motor into the base.
+- 将第一个电机放入底座中。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_2.webp"
   style="height:300px;"
 />
 
-**Step 4: Secure Motor**
+**步骤 4：固定电机**
 
-- Fasten the motor with 4 screws. Two from the bottom and two from top.
+- 用 4 颗螺丝固定电机。底部两颗，顶部两颗。
 
-**Step 5: Attach Motor Holder**
+**步骤 5：安装电机固定架**
 
-- Slide over the first motor holder and fasten it using two screws (one on each side).
+- 滑入第一个电机固定架，用两颗螺丝（每侧一颗）固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_4.webp"
   style="height:300px;"
 />
 
-**Step 6: Attach Motor Horns**
+**步骤 6：安装电机舵盘**
 
-- Install both motor horns, securing the top horn with a screw. Try not to move the motor position when attaching the motor horn, especially for the leader arms, where we removed the gears.
+- 安装两个电机舵盘，用螺丝固定顶部舵盘。安装舵盘时尽量不移动电机位置，尤其是对已拆卸齿轮的主臂电机。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_5.webp"
@@ -280,44 +280,44 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
 
 <details>
   <summary>
-    <strong>Video adding motor horn</strong>
+    <strong>安装电机舵盘视频</strong>
   </summary>
   <video src="https://github.com/user-attachments/assets/ef3391a4-ad05-4100-b2bd-1699bf86c969"></video>
 </details>
 
-**Step 7: Attach Shoulder Part**
+**步骤 7：安装肩部零件**
 
-- Route one wire to the back of the robot and the other to the left or towards you (see photo).
-- Attach the shoulder part.
+- 将一根线缆从机器人后方引出，另一根从左侧或朝向你的方向引出（见照片）。
+- 安装肩部零件。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_6.webp"
   style="height:300px;"
 />
 
-**Step 8: Secure Shoulder**
+**步骤 8：固定肩部**
 
-- Tighten the shoulder part with 4 screws on top and 4 on the bottom
-  _(access bottom holes by turning the shoulder)._
+- 用顶部 4 颗螺丝和底部 4 颗螺丝拧紧肩部零件
+  _（通过转动肩部来操作底部孔位）。_
 
 ---
 
-### Second Motor Assembly
+### 第二个电机组装
 
-**Step 9: Install Motor 2**
+**步骤 9：安装电机 2**
 
-- Slide the second motor in from the top and link the wire from motor 1 to motor 2.
+- 从顶部滑入第二个电机，并将电机 1 的线缆连接到电机 2。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_8.webp"
   style="height:300px;"
 />
 
-**Step 10: Attach Shoulder Holder**
+**步骤 10：安装肩部固定架**
 
-- Add the shoulder motor holder.
-- Ensure the wire from motor 1 to motor 2 goes behind the holder while the other wire is routed upward (see photo).
-- This part can be tight to assemble, you can use a workbench like the image or a similar setup to push the part around the motor.
+- 安装肩部电机固定架。
+- 确保电机 1 到电机 2 的线缆位于固定架后方，另一根线缆向上引出（见照片）。
+- 该零件的安装可能比较紧，可以使用工作台或类似装置将零件推到电机周围。
 
 <div style="display: flex;">
   <img
@@ -334,46 +334,46 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
   />
 </div>
 
-**Step 11: Secure Motor 2**
+**步骤 11：固定电机 2**
 
-- Fasten the second motor with 4 screws.
+- 用 4 颗螺丝固定第二个电机。
 
-**Step 12: Attach Motor Horn**
+**步骤 12：安装电机舵盘**
 
-- Attach both motor horns to motor 2, again use the horn screw.
+- 将两个电机舵盘安装到电机 2 上，再次使用舵盘螺丝固定。
 
-**Step 13: Attach Base**
+**步骤 13：安装底座连接件**
 
-- Install the base attachment using 2 screws.
+- 用 2 颗螺丝安装底座连接件。
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_11.webp" style="height:300px;">
 
-**Step 14: Attach Upper Arm**
+**步骤 14：安装上臂**
 
-- Attach the upper arm with 4 screws on each side.
+- 用每侧 4 颗螺丝安装上臂。
 
 <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_13.webp" style="height:300px;">
 
 ---
 
-### Third Motor Assembly
+### 第三个电机组装
 
-**Step 15: Install Motor 3**
+**步骤 15：安装电机 3**
 
-- Route the motor cable from motor 2 through the cable holder to motor 3, then secure motor 3 with 4 screws.
+- 将电机 2 的线缆通过线夹引到电机 3，然后用 4 颗螺丝固定电机 3。
 
-**Step 16: Attach Motor Horn**
+**步骤 16：安装电机舵盘**
 
-- Attach both motor horns to motor 3 and secure one again with a horn screw.
+- 将两个电机舵盘安装到电机 3 上，并用舵盘螺丝固定其中一个。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_14.webp"
   style="height:300px;"
 />
 
-**Step 17: Attach Forearm**
+**步骤 17：安装前臂**
 
-- Connect the forearm to motor 3 using 4 screws on each side.
+- 用每侧 4 颗螺丝将前臂连接到电机 3。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_15.webp"
@@ -382,11 +382,11 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
 
 ---
 
-### Fourth Motor Assembly
+### 第四个电机组装
 
-**Step 18: Install Motor 4**
+**步骤 18：安装电机 4**
 
-- Slide in motor 4, attach the cable from motor 3, and secure the cable in its holder with a screw.
+- 滑入电机 4，连接电机 3 的线缆，用螺丝将线缆固定在线夹中。
 
 <div style="display: flex;">
   <img
@@ -399,18 +399,18 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
   />
 </div>
 
-**Step 19: Attach Motor Holder 4**
+**步骤 19：安装电机固定架 4**
 
-- Install the fourth motor holder (a tight fit). Ensure one wire is routed upward and the wire from motor 3 is routed downward (see photo).
+- 安装第四个电机固定架（安装较紧）。确保一根线缆向上引出，电机 3 的线缆向下引出（见照片）。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_17.webp"
   style="height:300px;"
 />
 
-**Step 20: Secure Motor 4 & Attach Horn**
+**步骤 20：固定电机 4 并安装舵盘**
 
-- Fasten motor 4 with 4 screws and attach its motor horns, use for one a horn screw.
+- 用 4 颗螺丝固定电机 4，并安装电机舵盘，用舵盘螺丝固定其中一个。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_18.webp"
@@ -419,30 +419,30 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
 
 ---
 
-### Wrist Assembly
+### 腕部组装
 
-**Step 21: Install Motor 5**
+**步骤 21：安装电机 5**
 
-- Insert motor 5 into the wrist holder and secure it with 2 front screws.
+- 将电机 5 插入腕部固定架，用 2 颗前面螺丝固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_20.webp"
   style="height:300px;"
 />
 
-**Step 22: Attach Wrist**
+**步骤 22：安装腕部**
 
-- Connect the wire from motor 4 to motor 5. And already insert the other wire for the gripper.
-- Secure the wrist to motor 4 using 4 screws on both sides.
+- 将电机 4 的线缆连接到电机 5。同时预先插入夹爪的另一根线缆。
+- 用两侧各 4 颗螺丝将腕部固定到电机 4。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_22.webp"
   style="height:300px;"
 />
 
-**Step 23: Attach Wrist Horn**
+**步骤 23：安装腕部舵盘**
 
-- Install only one motor horn on the wrist motor and secure it with a horn screw.
+- 在腕部电机上只安装一个电机舵盘，并用舵盘螺丝固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_23.webp"
@@ -451,39 +451,39 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
 
 ---
 
-### Follower Configuration
+### 从臂配置
 
-**Step 24: Attach Gripper**
+**步骤 24：安装夹爪**
 
-- Attach the gripper to motor 5.
+- 将夹爪安装到电机 5。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_24.webp"
   style="height:300px;"
 />
 
-**Step 25: Install Gripper Motor**
+**步骤 25：安装夹爪电机**
 
-- Insert the gripper motor, connect the motor wire from motor 5 to motor 6, and secure it with 3 screws on each side.
+- 插入夹爪电机，将电机 5 的线缆连接到电机 6，用每侧 3 颗螺丝固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_25.webp"
   style="height:300px;"
 />
 
-**Step 26: Attach Gripper Horn & Claw**
+**步骤 26：安装夹爪舵盘和夹爪**
 
-- Attach the motor horns and again use a horn screw.
-- Install the gripper claw and secure it with 4 screws on both sides.
+- 安装电机舵盘，再次使用舵盘螺丝固定。
+- 安装夹爪，用两侧各 4 颗螺丝固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_26.webp"
   style="height:300px;"
 />
 
-**Step 27: Mount Controller**
+**步骤 27：安装控制器**
 
-- Attach the motor controller to the back of the robot.
+- 将电机控制器安装到机器人背面。
 
 <div style="display: flex;">
   <img
@@ -496,53 +496,53 @@ This video provides visual guidance for assembling the arms, but it doesn't spec
   />
 </div>
 
-_Assembly complete – proceed to Leader arm assembly._
+_组装完成 – 继续进行主臂组装。_
 
 ---
 
-### Leader Configuration
+### 主臂配置
 
-For the leader configuration, perform **Steps 1–23**. Make sure that you removed the motor gears from the motors.
+对于主臂配置，执行**步骤 1–23**。请确保已拆下电机的齿轮。
 
-**Step 24: Attach Leader Holder**
+**步骤 24：安装主臂固定架**
 
-- Mount the leader holder onto the wrist and secure it with a screw.
+- 将主臂固定架安装到腕部，用螺丝固定。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_29.webp"
   style="height:300px;"
 />
 
-**Step 25: Attach Handle**
+**步骤 25：安装手柄**
 
-- Attach the handle to motor 5 using 4 screws.
+- 用 4 颗螺丝将手柄安装到电机 5。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_30.webp"
   style="height:300px;"
 />
 
-**Step 26: Install Gripper Motor**
+**步骤 26：安装夹爪电机**
 
-- Insert the gripper motor, secure it with 3 screws on each side, attach a motor horn using a horn screw, and connect the motor wire.
+- 插入夹爪电机，用每侧 3 颗螺丝固定，用舵盘螺丝安装电机舵盘，并连接电机线缆。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_31.webp"
   style="height:300px;"
 />
 
-**Step 27: Attach Trigger**
+**步骤 27：安装触发手柄**
 
-- Attach the follower trigger with 4 screws.
+- 用 4 颗螺丝安装从臂触发手柄。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/so100_assembly_32.webp"
   style="height:300px;"
 />
 
-**Step 28: Mount Controller**
+**步骤 28：安装控制器**
 
-- Attach the motor controller to the back of the robot.
+- 将电机控制器安装到机器人背面。
 
 <div style="display: flex;">
   <img
@@ -555,27 +555,27 @@ For the leader configuration, perform **Steps 1–23**. Make sure that you remov
   />
 </div>
 
-## Calibrate
+## 校准
 
-Next, you'll need to calibrate your robot to ensure that the leader and follower arms have the same position values when they are in the same physical position.
-The calibration process is very important because it allows a neural network trained on one robot to work on another.
+接下来，你需要校准机器人，以确保主臂和从臂在相同物理位置时具有相同的位置值。
+校准过程非常重要，因为它使在一个机器人上训练的神经网络能够在另一个机器人上工作。
 
-#### Follower
+#### 从臂
 
-Run the following command or API example to calibrate the follower arm:
+运行以下命令或 API 示例来校准从臂：
 
 <hfoptions id="calibrate_follower">
-<hfoption id="Command">
+<hfoption id="命令">
 
 ```bash
 lerobot-calibrate \
     --robot.type=so100_follower \
-    --robot.port=/dev/tty.usbmodem58760431551 \ # <- The port of your robot
-    --robot.id=my_awesome_follower_arm # <- Give the robot a unique name
+    --robot.port=/dev/tty.usbmodem58760431551 \ # <- 机器人的端口
+    --robot.id=my_awesome_follower_arm # <- 为机器人指定一个唯一名称
 ```
 
 </hfoption>
-<hfoption id="API example">
+<hfoption id="API 示例">
 
 <!-- prettier-ignore-start -->
 ```python
@@ -596,24 +596,24 @@ follower.disconnect()
 </hfoption>
 </hfoptions>
 
-We unified the calibration method for most robots. Thus, the calibration steps for this SO100 arm are the same as the steps for the Koch and SO101. First, we have to move the robot to the position where each joint is in the middle of its range, then we press `Enter`. Secondly, we move all joints through their full range of motion. A video of this same process for the SO101 as reference can be found [here](https://huggingface.co/docs/lerobot/en/so101#calibration-video)
+我们对大多数机器人的校准方法进行了统一。因此，SO100 手臂的校准步骤与 Koch 和 SO101 相同。首先，我们需要将机器人移动到每个关节处于其运动范围中间的位置，然后按 `Enter`。其次，将所有关节移动通过其完整的运动范围。关于 SO101 相同过程的视频参考，请点击[此处](https://huggingface.co/docs/lerobot/en/so101#calibration-video)。
 
-#### Leader
+#### 主臂
 
-Do the same steps to calibrate the leader arm, run the following command or API example:
+执行相同步骤校准主臂，运行以下命令或 API 示例：
 
 <hfoptions id="calibrate_leader">
-<hfoption id="Command">
+<hfoption id="命令">
 
 ```bash
 lerobot-calibrate \
     --teleop.type=so100_leader \
-    --teleop.port=/dev/tty.usbmodem58760431551 \ # <- The port of your robot
-    --teleop.id=my_awesome_leader_arm # <- Give the robot a unique name
+    --teleop.port=/dev/tty.usbmodem58760431551 \ # <- 机器人的端口
+    --teleop.id=my_awesome_leader_arm # <- 为机器人指定一个唯一名称
 ```
 
 </hfoption>
-<hfoption id="API example">
+<hfoption id="API 示例">
 
 <!-- prettier-ignore-start -->
 ```python
@@ -634,7 +634,7 @@ leader.disconnect()
 </hfoption>
 </hfoptions>
 
-Congrats 🎉, your robot is all set to learn a task on its own. Start training it by following this tutorial: [Getting started with real-world robots](./il_robots)
+恭喜 🎉，你的机器人已经准备好自主学习任务了。请按照本教程开始训练：[开始使用真实机器人](./il_robots)
 
 > [!TIP]
-> If you have any questions or need help, please reach out on [Discord](https://discord.com/invite/s3KuuzsPFb).
+> 如果你有任何问题或需要帮助，请通过 [Discord](https://discord.com/invite/s3KuuzsPFb) 联系我们。

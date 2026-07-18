@@ -1,8 +1,8 @@
-## Paper
+## 论文（Paper）
 
 https://www.nicklashansen.com/td-mpc/
 
-## Citation
+## 引用（Citation）
 
 ```bibtex
 @inproceedings{Hansen2022tdmpc,

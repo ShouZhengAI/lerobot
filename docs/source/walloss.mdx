@@ -1,48 +1,48 @@
 # WALL-OSS
 
-WALL-OSS is an open-source foundation model for embodied intelligence, proposed by the [XSquare Robot](https://x2robot.com/en/research/68bc2cde8497d7f238dde690) team in 2025. The LeRobot implementation is adapted from their open-source [WallX](https://github.com/X-Square-Robot/wall-x) repository.
+WALL-OSS 是一个面向具身智能（embodied intelligence）的开源基础模型，由 [XSquare Robot](https://x2robot.com/en/research/68bc2cde8497d7f238dde690) 团队于 2025 年提出。LeRobot 的实现改编自他们的开源 [WallX](https://github.com/X-Square-Robot/wall-x) 仓库。
 
-X Square Robot’s WALL-OSS is now integrated into Hugging Face’s LeRobot ecosystem. This is an exciting collaborative project between the LeRobot and X Square Robot teams. You can now post-train, evaluate, and deploy WALL-OSS directly through LeRobot. With this, we’re aiming to make it easier for the open-source robotics community to customize and deploy WALL-OSS foundation models. Read and explore WALL-OSS [paper](https://arxiv.org/pdf/2509.11766) and [code](https://github.com/X-Square-Robot/wall-x).
+X Square Robot 的 WALL-OSS 现已集成到 Hugging Face 的 LeRobot 生态系统中。这是 LeRobot 团队与 X Square Robot 团队之间一次令人兴奋的协作项目。您现在可以直接通过 LeRobot 对 WALL-OSS 进行后训练（post-train）、评估和部署。我们希望借此让开源机器人社区更轻松地定制和部署 WALL-OSS 基础模型。欢迎阅读和探索 WALL-OSS 的[论文](https://arxiv.org/pdf/2509.11766)和[代码](https://github.com/X-Square-Robot/wall-x)。
 
-## Model Overview
+## 模型概述
 
-The WALL-OSS team is building the embodied foundation model to capture and compress the world's most valuable data: the continuous, high-fidelity stream of physical interaction. By creating a direct feedback loop between the model's decisions and the body's lived experience, the emergence of a truly generalizable intelligence is enabled—one that understands not just how the world works, but how to act effectively within it.
+WALL-OSS 团队正在构建具身基础模型，以捕获和压缩世界上最有价值的数据：持续、高保真的物理交互流。通过在模型决策与身体的真实体验之间建立直接反馈循环，实现了真正可泛化的智能——这种智能不仅理解世界如何运作，更懂得如何在其间有效行动。
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/walloss-lerobot-paper.png"
-  alt="An overview of WALL-OSS"
+  alt="WALL-OSS 概览"
   width="85%"
 />
 
-Technically, WALL-OSS introduces a tightly coupled multimodal architecture (tightly-coupled MoE structure) that integrates both discrete and continuous action modeling strategies. Through a two-stage training pipeline (Inspiration → Integration), the model gradually unifies semantic reasoning and high-frequency action generation. Its core innovations include:
+从技术上讲，WALL-OSS 引入了一种紧耦合的多模态架构（紧耦合 MoE 结构），同时集成了离散和连续动作建模策略。通过两阶段训练流程（Inspiration -> Integration），模型逐步统一了语义推理和高频动作生成。其核心创新包括：
 
-- **Embodied perception–enhanced multimodal pretraining**: Large-scale training on unified vision–language–action data to strengthen spatial, causal, and manipulation understanding.
-- **Unified Cross-Level Chain-of-Thought (Uni-CoT)**: A single differentiable framework that unifies high-level instruction reasoning, sub-task decomposition, and fine-grained action synthesis, forming a continuous chain from “understanding” to “execution.”
-- **Mixture-of-Experts (MoE) action heads**: Dynamically activating experts depending on the task phase and modeling actions in discrete or continuous space to maintain stable VLM priors.
-- **Two-stage training paradigm**:
-  - **Inspiration stage**: Injecting discrete action priors to strengthen spatial understanding and semantic-action alignment.
-  - **Integration stage**: Using flow matching to achieve high-frequency continuous control.
+- **具身感知增强的多模态预训练（Embodied perception-enhanced multimodal pretraining）**：在统一的视觉-语言-动作数据上进行大规模训练，以增强空间、因果和操作理解能力。
+- **统一跨层级思维链（Uni-CoT，Unified Cross-Level Chain-of-Thought）**：一个单一的可微分框架，统一了高层指令推理、子任务分解和细粒度动作合成，形成了从"理解"到"执行"的连续链条。
+- **混合专家动作头（MoE action heads，Mixture-of-Experts action heads）**：根据任务阶段动态激活专家，并在离散或连续空间中建模动作，以保持稳定的视觉语言模型（VLM，Vision-Language Model）先验知识。
+- **两阶段训练范式（Two-stage training paradigm）**：
+  - **启迪阶段（Inspiration stage）**：注入离散动作先验知识，增强空间理解和语义-动作对齐。
+  - **融合阶段（Integration stage）**：使用流匹配（flow matching）实现高频连续控制。
 
-## Installation Requirements
+## 安装要求
 
-1. Install LeRobot by following our [Installation Guide](./installation).
-2. Install WallX dependencies by running:
+1. 按照我们的[安装指南](./installation)安装 LeRobot。
+2. 安装 WallX 依赖：
 
    ```bash
    pip install -e ".[wallx]"
    ```
 
-## Usage
+## 使用方法
 
-To use WallX in LeRobot, specify the policy type as:
+要在 LeRobot 中使用 WallX，将策略类型指定为：
 
 ```python
 policy.type=wall_x
 ```
 
-## Training
+## 训练
 
-For training WallX, you can use the standard LeRobot training script with the appropriate configuration:
+要训练 WallX，您可以使用标准的 LeRobot 训练脚本并传入相应配置：
 
 ```bash
 lerobot-train \
@@ -59,22 +59,22 @@ lerobot-train \
     --batch_size=32
 ```
 
-### Training Arguments
+### 训练参数说明
 
-| Argument                       | Description                                                                                                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--dataset.repo_id`            | The Hugging Face Hub repository ID for your training dataset (e.g., `lerobot/aloha_sim_insertion_human`)                                                      |
-| `--policy.type`                | Specifies using the WallX policy architecture                                                                                                                 |
-| `--output_dir`                 | Local directory where training checkpoints and logs will be saved                                                                                             |
-| `--job_name`                   | A name identifier for this training run (used in logging/tracking)                                                                                            |
-| `--policy.repo_id`             | Your Hugging Face Hub repo ID where the trained model will be pushed                                                                                          |
-| `--policy.pretrained_path`     | Path to pretrained WallX weights to initialize from (the official WALL-OSS checkpoint)                                                                        |
-| `--policy.prediction_mode`     | The action prediction strategy: `diffusion` or `fast` - `diffusion` uses iterative denoising for action generation, `fast` uses next token prediction instead |
-| `--policy.attn_implementation` | Attention implementation backend - `eager` uses standard PyTorch attention (alternatives include `flash_attention_2` or `sdpa`)                               |
-| `--steps`                      | Total number of training steps to run                                                                                                                         |
-| `--policy.device`              | Device to train on (`cuda` for GPU, `cpu` for CPU)                                                                                                            |
-| `--batch_size`                 | Number of samples per training batch                                                                                                                          |
+| 参数                           | 描述                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `--dataset.repo_id`            | 训练数据集在 Hugging Face Hub 上的仓库 ID（例如 `lerobot/aloha_sim_insertion_human`）              |
+| `--policy.type`                | 指定使用 WallX 策略架构                                                                         |
+| `--output_dir`                 | 保存训练检查点和日志的本地目录                                                                   |
+| `--job_name`                   | 当前训练运行的名称标识（用于日志/追踪）                                                           |
+| `--policy.repo_id`             | 训练后的模型将要推送到的 Hugging Face Hub 仓库 ID                                                |
+| `--policy.pretrained_path`     | 预训练 WallX 权重的路径，用于初始化模型（官方 WALL-OSS 检查点）                                    |
+| `--policy.prediction_mode`     | 动作预测策略：`diffusion` 或 `fast` - `diffusion` 使用迭代去噪生成动作，`fast` 改用下一个 token 预测 |
+| `--policy.attn_implementation` | 注意力机制实现后端 - `eager` 使用标准 PyTorch 注意力（可选 `flash_attention_2` 或 `sdpa`）       |
+| `--steps`                      | 训练总步数                                                                                       |
+| `--policy.device`              | 训练使用的设备（`cuda` 为 GPU，`cpu` 为 CPU）                                                   |
+| `--batch_size`                 | 每个训练批次的样本数量                                                                           |
 
-## License
+## 许可协议
 
-This model follows the **Apache 2.0 License**, consistent with the original [WallX repository](https://github.com/X-Square-Robot/wall-x).
+本模型遵循 **Apache 2.0 License**，与原始 [WallX 仓库](https://github.com/X-Square-Robot/wall-x) 一致。

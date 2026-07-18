@@ -1,24 +1,24 @@
 # VLA-JEPA
 
-This repository contains the LeRobot port of **VLA-JEPA**, a Vision-Language-Action model that combines a Qwen3-VL language backbone with a self-supervised video world model (V-JEPA2) and a flow-matching DiT action head.
+本仓库包含 LeRobot 对 **VLA-JEPA** 的移植实现，这是一个视觉-语言-动作模型（Vision-Language-Action Model），结合了 Qwen3-VL 语言骨干网络（backbone）、自监督视频世界模型（V-JEPA2）以及流匹配 DiT 动作头（flow-matching DiT action head）。
 
-Converted from [ginwind/VLA-JEPA](https://huggingface.co/ginwind/VLA-JEPA).
-
----
-
-## Architecture Overview
-
-| Component               | Module                            | Role                                                    |
-| ----------------------- | --------------------------------- | ------------------------------------------------------- |
-| **Qwen3-VL backbone**   | `Qwen3VLInterface`                | Fuses images + language instruction into context tokens |
-| **DiT-B action head**   | `VLAJEPAActionHead`               | Flow-matching diffusion over the action chunk           |
-| **V-JEPA2 world model** | `ActionConditionedVideoPredictor` | Self-supervised video prediction loss (training only)   |
-
-At inference time only the Qwen backbone and action head are used; the world model is not needed.
+从 [ginwind/VLA-JEPA](https://huggingface.co/ginwind/VLA-JEPA) 转换而来。
 
 ---
 
-## Citation
+## 架构概览
+
+| 组件                       | 模块                                | 角色                                                   |
+| -------------------------- | ----------------------------------- | ------------------------------------------------------ |
+| **Qwen3-VL 骨干网络**      | `Qwen3VLInterface`                  | 将图像与语言指令融合为上下文令牌（context tokens）      |
+| **DiT-B 动作头**           | `VLAJEPAActionHead`                 | 对动作块（action chunk）执行流匹配扩散                  |
+| **V-JEPA2 世界模型**       | `ActionConditionedVideoPredictor`   | 自监督视频预测损失（仅训练阶段使用）                    |
+
+推理时仅使用 Qwen 骨干网络和动作头；世界模型无需加载。
+
+---
+
+## 引用
 
 ```bibtex
 @misc{sun2026vlajepaenhancingvisionlanguageactionmodel,
@@ -34,6 +34,6 @@ At inference time only the Qwen backbone and action head are used; the world mod
 
 ---
 
-## License
+## 许可证
 
-Weights are distributed under the license terms of the original [ginwind/VLA-JEPA](https://huggingface.co/ginwind/VLA-JEPA) repository (**Apache 2.0 License**). The LeRobot integration code follows the **Apache 2.0 License**.
+模型权重遵循原始 [ginwind/VLA-JEPA](https://huggingface.co/ginwind/VLA-JEPA) 仓库的许可条款（**Apache 2.0 许可证**）进行分发。LeRobot 集成代码同样遵循 **Apache 2.0 许可证**。

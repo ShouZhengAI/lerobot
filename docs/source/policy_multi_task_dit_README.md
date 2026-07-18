@@ -1,8 +1,8 @@
-# Multitask DiT Policy
+# 多任务 DiT 策略
 
-## Citation
+## 引用
 
-If you use this work, please cite the following works:
+如果您使用了本工作，请引用以下文献：
 
 ```bibtex
 @misc{jones2025multitaskditpolicy,

@@ -1,140 +1,140 @@
-# Adding a New Benchmark
+# 添加新的基准测试
 
-This guide walks you through adding a new simulation benchmark to LeRobot. Follow the steps in order and use the existing benchmarks as templates.
+本指南将带你一步步完成在 LeRobot 中添加新的仿真基准测试（benchmark）。请按顺序操作，并以现有基准测试为模板。
 
-A benchmark in LeRobot is a set of [Gymnasium](https://gymnasium.farama.org/) environments that wrap a third-party simulator (like LIBERO or Meta-World) behind a standard `gym.Env` interface. The `lerobot-eval` CLI then runs evaluation uniformly across all benchmarks.
+LeRobot 中的基准测试是一组 [Gymnasium](https://gymnasium.farama.org/) 环境，它们将第三方模拟器（如 LIBERO 或 Meta-World）封装在标准 `gym.Env` 接口之后。`lerobot-eval` CLI 随后对所有基准测试统一进行评估。
 
-## Existing benchmarks at a glance
+## 现有基准测试一览
 
-Before diving in, here is what is already integrated:
+在开始之前，先了解已经集成了哪些内容：
 
-| Benchmark      | Env file            | Config class       | Tasks               | Action dim   | Processor                    |
-| -------------- | ------------------- | ------------------ | ------------------- | ------------ | ---------------------------- |
-| LIBERO         | `envs/libero.py`    | `LiberoEnv`        | 130 across 5 suites | 7            | `LiberoProcessorStep`        |
-| Meta-World     | `envs/metaworld.py` | `MetaworldEnv`     | 50 (MT50)           | 4            | None                         |
-| IsaacLab Arena | Hub-hosted          | `IsaaclabArenaEnv` | Configurable        | Configurable | `IsaaclabArenaProcessorStep` |
+| 基准测试       | 环境文件                | 配置类              | 任务数                  | 动作维度 | 处理器                             |
+| -------------- | ----------------------- | ------------------- | ----------------------- | -------- | --------------------------------- |
+| LIBERO         | `envs/libero.py`        | `LiberoEnv`         | 5 套共 130 个任务        | 7        | `LiberoProcessorStep`             |
+| Meta-World     | `envs/metaworld.py`     | `MetaworldEnv`      | 50 个（MT50）            | 4        | 无                                |
+| IsaacLab Arena | 托管于 Hub              | `IsaaclabArenaEnv`  | 可配置                   | 可配置   | `IsaaclabArenaProcessorStep`      |
 
-Use `src/lerobot/envs/libero.py` and `src/lerobot/envs/metaworld.py` as reference implementations.
+使用 `src/lerobot/envs/libero.py` 和 `src/lerobot/envs/metaworld.py` 作为参考实现。
 
-## How it all fits together
+## 整体架构
 
-### Data flow
+### 数据流
 
-During evaluation, data moves through four stages:
+评估过程中，数据经过四个阶段：
 
 ```
-1. gym.Env  ──→  raw observations (numpy dicts)
+1. gym.Env  ──→  原始观测（numpy 字典）
 
-2. Preprocessing  ──→  standard LeRobot keys + task description
-   (preprocess_observation in envs/utils.py, env.call("task_description"))
+2. 预处理  ──→  标准 LeRobot 键名 + 任务描述
+   （envs/utils.py 中的 preprocess_observation，env.call("task_description")）
 
-3. Processors  ──→  env-specific then policy-specific transforms
-   (env_preprocessor, policy_preprocessor)
+3. 处理器  ──→  环境特有变换 → 策略特有变换
+   （env_preprocessor，policy_preprocessor）
 
-4. Policy  ──→  select_action()  ──→  action tensor
-   then reverse: policy_postprocessor → env_postprocessor → numpy action → env.step()
+4. 策略  ──→  select_action()  ──→  动作张量
+   然后反向：policy_postprocessor → env_postprocessor → numpy 动作 → env.step()
 ```
 
-Most benchmarks only need to care about stage 1 (producing observations in the right format) and optionally stage 3 (if env-specific transforms are needed).
+大多数基准测试只需要关注阶段 1（以正确的格式产生观测）和可选的阶段 3（如果需要环境特有的变换）。
 
-### Environment structure
+### 环境结构
 
-`make_env()` returns a nested dict of vectorized environments:
+`make_env()` 返回一个嵌套的向量化环境字典：
 
 ```python
 dict[str, dict[int, gym.vector.VectorEnv]]
-#    ^suite       ^task_id
+#    ^套件       ^任务 ID
 ```
 
-A single-task env (e.g. PushT) looks like `{"pusht": {0: vec_env}}`.
-A multi-task benchmark (e.g. LIBERO) looks like `{"libero_spatial": {0: vec0, 1: vec1, ...}, ...}`.
+单任务环境（如 PushT）看起来像 `{"pusht": {0: vec_env}}`。
+多任务基准测试（如 LIBERO）看起来像 `{"libero_spatial": {0: vec0, 1: vec1, ...}, ...}`。
 
-### How evaluation runs
+### 评估的运行方式
 
-All benchmarks are evaluated the same way by `lerobot-eval`:
+所有基准测试通过 `lerobot-eval` 以相同方式进行评估：
 
-1. `make_env()` builds the nested `{suite: {task_id: VectorEnv}}` dict.
-2. `eval_policy_all()` iterates over every suite and task.
-3. For each task, it runs `n_episodes` rollouts via `rollout()`.
-4. Results are aggregated hierarchically: episode, task, suite, overall.
-5. Metrics include `pc_success` (success rate), `avg_sum_reward`, and `avg_max_reward`.
+1. `make_env()` 构建嵌套的 `{套件: {任务 ID: VectorEnv}}` 字典。
+2. `eval_policy_all()` 遍历每个套件和任务。
+3. 对于每个任务，通过 `rollout()` 运行 `n_episodes` 次回滚（rollout）。
+4. 结果按层级聚合：episode、task、suite、overall。
+5. 评估指标包括 `pc_success`（成功率）、`avg_sum_reward`（平均累计奖励）和 `avg_max_reward`（平均最大奖励）。
 
-The critical piece: your env must return `info["is_success"]` on every `step()` call. This is how the eval loop knows whether a task was completed.
+关键点：你的环境必须在每次 `step()` 调用时在 `info` 中返回 `info["is_success"]`。评估循环正是通过它来判断任务是否完成。
 
-## What your environment must provide
+## 你的环境必须提供的内容
 
-LeRobot does not enforce a strict observation schema. Instead it relies on a set of conventions that all benchmarks follow.
+LeRobot 不强制执行严格的观测模式，而是依赖所有基准测试共同遵循的一系列约定。
 
-### Env attributes
+### 环境属性
 
-Your `gym.Env` must set these attributes:
+你的 `gym.Env` 必须设置以下属性：
 
-| Attribute            | Type  | Why                                                  |
-| -------------------- | ----- | ---------------------------------------------------- |
-| `_max_episode_steps` | `int` | `rollout()` uses this to cap episode length          |
-| `task_description`   | `str` | Passed to VLA policies as a language instruction     |
-| `task`               | `str` | Fallback identifier if `task_description` is not set |
+| 属性                  | 类型   | 原因                                                  |
+| --------------------- | ------ | ----------------------------------------------------- |
+| `_max_episode_steps`  | `int`  | `rollout()` 使用此值限制 episode 长度                   |
+| `task_description`    | `str`  | 作为语言指令传递给 VLA 策略                             |
+| `task`                | `str`  | 当 `task_description` 未设置时的回退标识符              |
 
-### Success reporting
+### 成功检测报告
 
-Your `step()` and `reset()` must include `"is_success"` in the `info` dict:
+你的 `step()` 和 `reset()` 必须在 `info` 字典中包含 `"is_success"`：
 
 ```python
-info = {"is_success": True}   # or False
+info = {"is_success": True}   # 或 False
 return observation, reward, terminated, truncated, info
 ```
 
-### Observations
+### 观测
 
-The simplest approach is to map your simulator's outputs to the standard keys that `preprocess_observation()` already understands. Do this inside your `gym.Env` (e.g. in a `_format_raw_obs()` helper):
+最简单的方法是将模拟器的输出映射到 `preprocess_observation()` 已经理解的标准键名。在你的 `gym.Env` 内部完成此操作（例如在 `_format_raw_obs()` 辅助函数中）：
 
-| Your env should output    | LeRobot maps it to         | What it is                            |
-| ------------------------- | -------------------------- | ------------------------------------- |
-| `"pixels"` (single array) | `observation.image`        | Single camera image, HWC uint8        |
-| `"pixels"` (dict)         | `observation.images.<cam>` | Multiple cameras, each HWC uint8      |
-| `"agent_pos"`             | `observation.state`        | Proprioceptive state vector           |
-| `"environment_state"`     | `observation.env_state`    | Full environment state (e.g. PushT)   |
-| `"robot_state"`           | `observation.robot_state`  | Nested robot state dict (e.g. LIBERO) |
+| 你的环境应输出              | LeRobot 映射到              | 说明                                   |
+| ------------------------- | --------------------------- | -------------------------------------- |
+| `"pixels"`（单个数组）      | `observation.image`         | 单相机图像，HWC uint8 格式               |
+| `"pixels"`（字典）          | `observation.images.<cam>`  | 多相机图像，每个 HWC uint8 格式           |
+| `"agent_pos"`              | `observation.state`         | 本体感知状态向量                          |
+| `"environment_state"`      | `observation.env_state`     | 完整环境状态（如 PushT）                  |
+| `"robot_state"`            | `observation.robot_state`   | 嵌套的机器人状态字典（如 LIBERO）          |
 
-If your simulator uses different key names, you have two options:
+如果你的模拟器使用不同的键名，有两种选择：
 
-1. **Recommended:** Rename them to the standard keys inside your `gym.Env` wrapper.
-2. **Alternative:** Write an env processor to transform observations after `preprocess_observation()` runs (see step 4 below).
+1. **推荐做法**：在 `gym.Env` 包装器内部将其重命名为标准键名。
+2. **替代方案**：编写环境处理器，在 `preprocess_observation()` 运行后转换观测（参见下面的步骤 4）。
 
-### Actions
+### 动作
 
-Actions are continuous numpy arrays in a `gym.spaces.Box`. The dimensionality depends on your benchmark (7 for LIBERO, 4 for Meta-World, etc.). Policies adapt to different action dimensions through their `input_features` / `output_features` config.
+动作是 `gym.spaces.Box` 中的连续 numpy 数组。其维度取决于你的基准测试（LIBERO 为 7 维，Meta-World 为 4 维等）。策略通过其 `input_features` / `output_features` 配置适应不同的动作维度。
 
-### Feature declaration
+### 特征声明
 
-Each `EnvConfig` subclass declares two dicts that tell the policy what to expect:
+每个 `EnvConfig` 子类声明两个字典，告知策略预期的内容：
 
-- `features` — maps feature names to `PolicyFeature(type, shape)` (e.g. action dim, image shape).
-- `features_map` — maps raw observation keys to LeRobot convention keys (e.g. `"agent_pos"` to `"observation.state"`).
+- `features` — 将特征名映射到 `PolicyFeature(type, shape)`（例如动作维度、图像形状）。
+- `features_map` — 将原始观测键名映射到 LeRobot 约定键名（例如 `"agent_pos"` 映射到 `"observation.state"`）。
 
-## Step by step
+## 逐步指南
 
 <Tip>
-  At minimum, you need two files: a **gym.Env wrapper** and an **EnvConfig
-  subclass** with a `create_envs()` override. Everything else is optional or
-  documentation. No changes to `factory.py` are needed.
+  你至少需要两个文件：一个 **gym.Env 包装器** 和一个带
+  `create_envs()` 覆写的 **EnvConfig 子类**。其他所有内容都是可选的或文档。
+  不需要修改 `factory.py`。
 </Tip>
 
-### Checklist
+### 清单
 
-| File                                     | Required | Why                                                          |
-| ---------------------------------------- | -------- | ------------------------------------------------------------ |
-| `src/lerobot/envs/<benchmark>.py`        | Yes      | Wraps the simulator as a standard gym.Env                    |
-| `src/lerobot/envs/configs.py`            | Yes      | Registers your benchmark and its `create_envs()` for the CLI |
-| `src/lerobot/processor/env_processor.py` | Optional | Custom observation/action transforms                         |
-| `src/lerobot/envs/utils.py`              | Optional | Only if you need new raw observation keys                    |
-| `pyproject.toml`                         | Yes      | Declares benchmark-specific dependencies                     |
-| `docs/source/<benchmark>.mdx`            | Yes      | User-facing documentation page                               |
-| `docs/source/_toctree.yml`               | Yes      | Adds your page to the docs sidebar                           |
+| 文件                                     | 必须    | 原因                                                          |
+| ---------------------------------------- | ------- | ------------------------------------------------------------ |
+| `src/lerobot/envs/<benchmark>.py`        | 是      | 将模拟器封装为标准 gym.Env                                    |
+| `src/lerobot/envs/configs.py`            | 是      | 注册你的基准测试及其 `create_envs()` 供 CLI 使用               |
+| `src/lerobot/processor/env_processor.py` | 可选    | 自定义观测/动作变换                                           |
+| `src/lerobot/envs/utils.py`              | 可选    | 仅在需要新的原始观测键名时                                     |
+| `pyproject.toml`                         | 是      | 声明基准测试特有的依赖项                                       |
+| `docs/source/<benchmark>.mdx`            | 是      | 面向用户的文档页面                                             |
+| `docs/source/_toctree.yml`               | 是      | 将你的页面添加到文档侧边栏                                     |
 
-### 1. The gym.Env wrapper (`src/lerobot/envs/<benchmark>.py`)
+### 1. gym.Env 包装器（`src/lerobot/envs/<benchmark>.py`）
 
-Create a `gym.Env` subclass that wraps the third-party simulator:
+创建一个继承自 `gym.Env` 的子类，包装第三方模拟器：
 
 ```python
 class MyBenchmarkEnv(gym.Env):
@@ -142,28 +142,28 @@ class MyBenchmarkEnv(gym.Env):
 
     def __init__(self, task_suite, task_id, ...):
         super().__init__()
-        self.task = <task_name_string>
-        self.task_description = <natural_language_instruction>
-        self._max_episode_steps = <max_steps>
+        self.task = <任务名称字符串>
+        self.task_description = <自然语言指令>
+        self._max_episode_steps = <最大步数>
         self.observation_space = spaces.Dict({...})
         self.action_space = spaces.Box(low=..., high=..., shape=(...,), dtype=np.float32)
 
     def reset(self, seed=None, **kwargs):
-        ...  # return (observation, info) — info must contain {"is_success": False}
+        ...  # 返回 (observation, info) — info 必须包含 {"is_success": False}
 
     def step(self, action: np.ndarray):
-        ...  # return (obs, reward, terminated, truncated, info) — info must contain {"is_success": <bool>}
+        ...  # 返回 (obs, reward, terminated, truncated, info) — info 必须包含 {"is_success": <bool>}
 
     def render(self):
-        ...  # return RGB image as numpy array
+        ...  # 返回 RGB 图像为 numpy 数组
 
     def close(self):
         ...
 ```
 
-**GPU-based simulators (e.g. MuJoCo with EGL rendering):** If your simulator allocates GPU/EGL contexts during `__init__`, defer that allocation to a `_ensure_env()` helper called on first `reset()`/`step()`. This avoids inheriting stale GPU handles when `AsyncVectorEnv` spawns worker processes. See `LiberoEnv._ensure_env()` for the pattern.
+**基于 GPU 的模拟器（例如使用 EGL 渲染的 MuJoCo）：** 如果你的模拟器在 `__init__` 期间分配 GPU/EGL 上下文，请将该分配推迟到首次 `reset()`/`step()` 时调用的 `_ensure_env()` 辅助函数中。这样可以避免在 `AsyncVectorEnv` 生成 worker 进程时继承过时的 GPU 句柄。具体模式请参考 `LiberoEnv._ensure_env()`。
 
-Also provide a factory function that returns the nested dict structure:
+同时提供一个工厂函数，返回嵌套的字典结构：
 
 ```python
 def create_mybenchmark_envs(
@@ -172,29 +172,29 @@ def create_mybenchmark_envs(
     gym_kwargs: dict | None = None,
     env_cls: type | None = None,
 ) -> dict[str, dict[int, Any]]:
-    """Create {suite_name: {task_id: VectorEnv}} for MyBenchmark."""
+    """为 MyBenchmark 创建 {套件名称: {任务 ID: VectorEnv}}。"""
     ...
 ```
 
-See `create_libero_envs()` (multi-suite, multi-task) and `create_metaworld_envs()` (difficulty-grouped tasks) for reference.
+参考 `create_libero_envs()`（多套件、多任务）和 `create_metaworld_envs()`（按难度分组的任务）。
 
-### 2. The config (`src/lerobot/envs/configs.py`)
+### 2. 配置（`src/lerobot/envs/configs.py`）
 
-Register a config dataclass so users can select your benchmark with `--env.type=<name>`. Each config owns its environment creation and processor logic via two methods:
+注册一个配置数据类，让用户可以通过 `--env.type=<name>` 选择你的基准测试。每个配置通过两个方法管理其环境创建和处理器逻辑：
 
-- **`create_envs(n_envs, use_async_envs)`** — Returns `{suite: {task_id: VectorEnv}}`. The base class default uses `gym.make()` for single-task envs. Multi-task benchmarks override this.
-- **`get_env_processors()`** — Returns `(preprocessor, postprocessor)`. The base class default returns identity (no-op) pipelines. Override if your benchmark needs observation/action transforms.
+- **`create_envs(n_envs, use_async_envs)`** — 返回 `{套件: {任务 ID: VectorEnv}}`。基类默认使用 `gym.make()` 创建单任务环境。多任务基准测试覆写此方法。
+- **`get_env_processors()`** — 返回 `(preprocessor, postprocessor)`。基类默认返回恒等（无操作）管道。如果你的基准测试需要观测/动作变换，请覆写此方法。
 
 ```python
 @EnvConfig.register_subclass("<benchmark_name>")
 @dataclass
 class MyBenchmarkEnvConfig(EnvConfig):
-    task: str = "<default_task>"
+    task: str = "<默认任务>"
     fps: int = <fps>
     obs_type: str = "pixels_agent_pos"
 
     features: dict[str, PolicyFeature] = field(default_factory=lambda: {
-        ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(<action_dim>,)),
+        ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(<动作维度>,)),
     })
     features_map: dict[str, str] = field(default_factory=lambda: {
         ACTION: ACTION,
@@ -203,19 +203,19 @@ class MyBenchmarkEnvConfig(EnvConfig):
     })
 
     def __post_init__(self):
-        ...  # populate features based on obs_type
+        ...  # 根据 obs_type 填充 features
 
     @property
     def gym_kwargs(self) -> dict:
         return {"obs_type": self.obs_type, "render_mode": self.render_mode}
 
     def create_envs(self, n_envs: int, use_async_envs: bool = True):
-        """Override for multi-task benchmarks or custom env creation."""
+        """多任务基准测试或自定义环境创建时覆写此方法。"""
         from lerobot.envs.<benchmark> import create_<benchmark>_envs
         return create_<benchmark>_envs(task=self.task, n_envs=n_envs, ...)
 
     def get_env_processors(self):
-        """Override if your benchmark needs observation/action transforms."""
+        """如果你的基准测试需要观测/动作变换，请覆写此方法。"""
         from lerobot.processor import PolicyProcessorPipeline
         from lerobot.processor.env_processor import MyBenchmarkProcessorStep
         return (
@@ -224,16 +224,16 @@ class MyBenchmarkEnvConfig(EnvConfig):
         )
 ```
 
-Key points:
+要点：
 
-- The `register_subclass` name is what users pass on the CLI (`--env.type=<name>`).
-- `features` tells the policy what the environment produces.
-- `features_map` maps raw observation keys to LeRobot convention keys.
-- **No changes to `factory.py` needed** — the factory delegates to `cfg.create_envs()` and `cfg.get_env_processors()` automatically.
+- `register_subclass` 的名称是用户在 CLI 上传递的名称（`--env.type=<name>`）。
+- `features` 告知策略环境产生的内容。
+- `features_map` 将原始观测键名映射到 LeRobot 约定键名。
+- **无需修改 `factory.py`** — 工厂会自动委托给 `cfg.create_envs()` 和 `cfg.get_env_processors()`。
 
-### 3. Env processor (optional — `src/lerobot/processor/env_processor.py`)
+### 3. 环境处理器（可选 — `src/lerobot/processor/env_processor.py`）
 
-Only needed if your benchmark requires observation transforms beyond what `preprocess_observation()` handles (e.g. image flipping, coordinate conversion). Define the processor step here and return it from `get_env_processors()` in your config (see step 2):
+仅当你的基准测试需要超出 `preprocess_observation()` 处理的观测变换时（例如图像翻转、坐标转换），才需要此文件。在此处定义处理器步骤，并在配置的 `get_env_processors()` 中返回它（见步骤 2）：
 
 ```python
 @dataclass
@@ -241,46 +241,46 @@ Only needed if your benchmark requires observation transforms beyond what `prepr
 class MyBenchmarkProcessorStep(ObservationProcessorStep):
     def _process_observation(self, observation):
         processed = observation.copy()
-        # your transforms here
+        # 在此处进行你的变换
         return processed
 
     def transform_features(self, features):
-        return features  # update if shapes change
+        return features  # 如果形状发生变化则更新
 
     def observation(self, observation):
         return self._process_observation(observation)
 ```
 
-See `LiberoProcessorStep` for a full example (image rotation, quaternion-to-axis-angle conversion).
+完整示例请参考 `LiberoProcessorStep`（图像旋转、四元数到轴角的转换）。
 
-### 4. Dependencies (`pyproject.toml`)
+### 4. 依赖项（`pyproject.toml`）
 
-Add a new optional-dependency group:
+添加一个新的可选依赖组：
 
 ```toml
 mybenchmark = ["my-benchmark-pkg==1.2.3", "lerobot[scipy-dep]"]
 ```
 
-Pinning rules:
+版本锁定规则：
 
-- **Always pin** benchmark packages to exact versions for reproducibility (e.g. `metaworld==3.0.0`).
-- **Add platform markers** when needed (e.g. `; sys_platform == 'linux'`).
-- **Pin fragile transitive deps** if known (e.g. `gymnasium==1.1.0` for Meta-World).
-- **Document constraints** in your benchmark doc page.
+- **始终锁定** 基准测试包到精确版本以确保可复现（例如 `metaworld==3.0.0`）。
+- **在需要时添加平台标记**（例如 `; sys_platform == 'linux'`）。
+- **如果已知，锁定脆弱的传递依赖**（例如 Meta-World 的 `gymnasium==1.1.0`）。
+- **在基准测试文档页面中记录约束条件**。
 
-Users install with:
+用户通过以下命令安装：
 
 ```bash
 pip install -e ".[mybenchmark]"
 ```
 
-### 5. Documentation (`docs/source/<benchmark>.mdx`)
+### 5. 文档（`docs/source/<benchmark>.mdx`）
 
-Write a user-facing page following the template in the next section. See `docs/source/libero.mdx` and `docs/source/metaworld.mdx` for full examples.
+按照下一节的模板编写面向用户的页面。完整示例请参考 `docs/source/libero.mdx` 和 `docs/source/metaworld.mdx`。
 
-### 6. Table of contents (`docs/source/_toctree.yml`)
+### 6. 目录（`docs/source/_toctree.yml`）
 
-Add your benchmark to the "Benchmarks" section:
+将你的基准测试添加到"基准测试"部分：
 
 ```yaml
 - sections:
@@ -289,34 +289,34 @@ Add your benchmark to the "Benchmarks" section:
     - local: metaworld
       title: Meta-World
     - local: envhub_isaaclab_arena
-      title: NVIDIA IsaacLab Arena Environments
+      title: NVIDIA IsaacLab Arena 环境
     - local: <your_benchmark>
-      title: <Your Benchmark Name>
-  title: "Benchmarks"
+      title: <你的基准测试名称>
+  title: "基准测试"
 ```
 
-## Verifying your integration
+## 验证你的集成
 
-After completing the steps above, confirm that everything works:
+完成以上步骤后，确认一切工作正常：
 
-1. **Install** — `pip install -e ".[mybenchmark]"` and verify the dependency group installs cleanly.
-2. **Smoke test env creation** — call `make_env()` with your config in Python, check that the returned dict has the expected `{suite: {task_id: VectorEnv}}` shape, and that `reset()` returns observations with the right keys.
-3. **Run a full eval** — `lerobot-eval --env.type=<name> --env.task=<task> --eval.n_episodes=1 --policy.path=<any_compatible_policy>` to exercise the full pipeline end-to-end. (`batch_size` defaults to auto-tuning based on CPU cores; pass `--eval.batch_size=1` to force a single environment.)
-4. **Check success detection** — verify that `info["is_success"]` flips to `True` when the task is actually completed. This is what the eval loop uses to compute success rates.
+1. **安装** — 运行 `pip install -e ".[mybenchmark]"`，验证依赖组可以正常安装。
+2. **环境创建冒烟测试** — 在 Python 中使用你的配置调用 `make_env()`，检查返回的字典是否具有预期的 `{套件: {任务 ID: VectorEnv}}` 结构，以及 `reset()` 是否返回带有正确键名的观测。
+3. **运行完整评估** — 执行 `lerobot-eval --env.type=<name> --env.task=<任务> --eval.n_episodes=1 --policy.path=<任意兼容的策略>`，以端到端方式运行完整流程（`batch_size` 默认根据 CPU 核心数自动调整；传递 `--eval.batch_size=1` 可强制使用单一环境）。
+4. **检查成功检测** — 验证当任务实际完成时，`info["is_success"]` 是否切换为 `True`。评估循环正是通过此标志计算成功率的。
 
-## Writing a benchmark doc page
+## 编写基准测试文档页面
 
-Each benchmark `.mdx` page should include:
+每个基准测试的 `.mdx` 页面应包含：
 
-- **Title and description** — 1-2 paragraphs on what the benchmark tests and why it matters.
-- **Links** — paper, GitHub repo, project website (if available).
-- **Overview image or GIF.**
-- **Available tasks** — table of task suites with counts and brief descriptions.
-- **Installation** — `pip install -e ".[<benchmark>]"` plus any extra steps (env vars, system packages).
-- **Evaluation** — recommended `lerobot-eval` command with `n_episodes` for reproducible results. `batch_size` defaults to auto; only specify it if needed. Include single-task and multi-task examples if applicable.
-- **Policy inputs and outputs** — observation keys with shapes, action space description.
-- **Recommended evaluation episodes** — how many episodes per task is standard.
-- **Training** — example `lerobot-train` command.
-- **Reproducing published results** — link to pretrained model, eval command, results table (if available).
+- **标题和描述** — 1-2 段文字介绍该基准测试测试什么以及为什么重要。
+- **链接** — 论文、GitHub 仓库、项目网站（如有）。
+- **概览图片或 GIF。**
+- **可用任务** — 包含任务套件、数量和简要说明的表格。
+- **安装** — `pip install -e ".[<benchmark>]"` 以及任何额外步骤（环境变量、系统包）。
+- **评估** — 推荐的 `lerobot-eval` 命令，附带 `n_episodes` 以获得可复现的结果。`batch_size` 默认为自动调整，仅在需要时指定。如果适用，包含单任务和多任务示例。
+- **策略输入和输出** — 带有形状的观测键名、动作空间描述。
+- **推荐的评估 episode 数** — 每个任务的标准评估次数。
+- **训练** — 示例 `lerobot-train` 命令。
+- **复现已发表结果** — 预训练模型链接、评估命令、结果表格（如有）。
 
-See `docs/source/libero.mdx` and `docs/source/metaworld.mdx` for complete examples.
+完整示例请参考 `docs/source/libero.mdx` 和 `docs/source/metaworld.mdx`。

@@ -1,87 +1,87 @@
-# Human-In-the-Loop Data Collection
+# 人在环路数据采集（Human-In-the-Loop Data Collection）
 
-Human-In-the-Loop (HIL) data collection lets you improve a trained policy by deploying it on a real robot while a human operator monitors and intervenes when needed. The intervention data (recovery movements and corrections) is recorded alongside autonomous segments, producing a richer training dataset that teaches the policy how to handle failures.
-
----
-
-## Why Human-In-the-Loop?
-
-Standard behavioral cloning trains policies on successful demonstrations only. During deployment, small errors can compound and push the robot into states never seen during training (distribution shift). HIL data collection addresses this by:
-
-- Running the trained policy on the real robot
-- Having a human intervene when the robot is about to fail
-- Recording the human's recovery and correction as training data
-- Fine-tuning the policy on the combined dataset
-
-This produces a policy that not only knows how to perform the task, but also how to recover when things go wrong.
+人在环路（Human-In-the-Loop，简称 HIL）数据采集让您可以通过在实际机器人上部署训练好的策略来改进它，同时由人类操作员监控并在需要时进行干预。干预数据（恢复动作和修正行为）会与自主运行段一起被记录，生成更丰富的训练数据集，教策略如何处理失败情况。
 
 ---
 
-## How It Works
+## 为什么需要人在环路？
 
-During a HIL session, the human operator follows this loop within each episode:
+标准的行为克隆（behavioral cloning）仅在成功演示上训练策略。在部署过程中，微小的误差可能累积，导致机器人进入训练期间从未见过的状态（分布偏移，distribution shift）。HIL 数据采集通过以下方式解决这一问题：
 
-1. **Watch** the policy run autonomously
-2. **Pause** when failure is imminent, the robot holds its position
-3. **Take control** and teleoperate the robot back to a good state (recovery), then correct the behavior
-4. **Return control to the policy**, the policy resumes autonomous execution
-5. Repeat steps 2–4 as many times as needed during the episode
-6. **End the episode** when the task is complete, save and move on to the next rollout
+- 在实际机器人上运行训练好的策略
+- 在机器人即将失败时由人类进行干预
+- 记录人类的恢复和修正动作作为训练数据
+- 在合并后的数据集上微调策略
 
-Both autonomous and human-controlled segments are recorded. The policy and human can alternate control multiple times within a single episode, and the episode continues from the current state after each handoff (no reset required just because intervention happened). This captures autonomous execution, recovery, and correction in one continuous trajectory. After collection, the combined dataset (original demonstrations + HIL data) is used to fine-tune the policy.
+这样生成的策略不仅知道如何执行任务，还知道在出错时如何恢复。
 
-This process can be repeated iteratively: deploy, collect, fine-tune, repeat. Each round targets the current policy's failure modes.
+---
+
+## 工作原理
+
+在 HIL 会话期间，人类操作员在每个回合（episode）中遵循以下循环：
+
+1. **观察**策略自主运行
+2. **暂停**——当失败即将发生时暂停，机器人保持当前位置
+3. **接管控制**——通过远程操控（teleoperation）将机器人恢复到良好状态（恢复，recovery），然后修正行为
+4. **交还控制给策略**——策略从当前位置恢复自主执行
+5. 在回合中根据需要重复步骤 2–4 多次
+6. **结束回合**——任务完成时结束，保存并进入下一个 rollout
+
+自主运行段和人工控制段都会被记录。策略和人类可以在单个回合中多次交替控制，每次交接后回合从当前状态继续（不因干预而重置）。这样在一个连续的轨迹中捕获了自主执行、恢复和修正过程。采集完成后，合并后的数据集（原始演示 + HIL 数据）用于微调策略。
+
+这个过程可以迭代重复：部署、采集、微调、再重复。每轮针对当前策略的失败模式。
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Policy v0 (trained on demos)                                           │
+│  策略 v0（在演示数据上训练）                                               │
 │       ↓                                                                 │
-│  HIL Collection (target current failure modes) → Fine-tune → Policy v1  │
+│  HIL 采集（针对当前失败模式）→ 微调 → 策略 v1                              │
 │       ↓                                                                 │
-│  HIL Collection (target new failure modes) → Fine-tune → Policy v2      │
+│  HIL 采集（针对新的失败模式）→ 微调 → 策略 v2                              │
 │       ↓                                                                 │
-│  ... (repeat until satisfactory performance)                            │
+│  ...（重复直到达到满意的性能）                                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Hardware Requirements
+## 硬件要求
 
-### Teleoperator Requirements
+### 远程操控设备要求
 
-The `lerobot-rollout --strategy.type=dagger` mode requires **teleoperators with active motors** that can:
+`lerobot-rollout --strategy.type=dagger` 模式需要**带有活动电机（active motors）的远程操控设备**，需要能够：
 
-- Enable/disable torque programmatically
-- Move to target positions (to mirror the robot state when pausing)
+- 通过编程启用/禁用扭矩（torque）
+- 移动到目标位置（以便在暂停时镜像机器人状态）
 
-**Compatible teleoperators:**
+**兼容的远程操控设备：**
 
-- `bi_openarm_mini` - Bimanual OpenArm Mini
-- `so_leader` - SO100 / SO101 leader arm
+- `bi_openarm_mini` - 双臂 OpenArm Mini
+- `so_leader` - SO100 / SO101 领导臂
 
 > [!IMPORTANT]
-> The provided commands default to `bi_openarm_follower` + `bi_openarm_mini`.
-> `so_follower` + `so_leader` configs are also registered and can be used via CLI flags.
+> 提供的命令默认使用 `bi_openarm_follower` + `bi_openarm_mini`。
+> `so_follower` + `so_leader` 配置也已注册，可以通过 CLI 参数使用。
 
 ---
 
-## Script
+## 脚本
 
-Use `lerobot-rollout` with `--strategy.type=dagger` for HIL data collection. Select the inference backend with `--inference.type=sync|rtc`:
+使用 `lerobot-rollout` 配合 `--strategy.type=dagger` 进行 HIL 数据采集。使用 `--inference.type=sync|rtc` 选择推理后端：
 
-| Mode                     | Flag                   | Models                |
+| 模式 | 标志 | 模型 |
 | ------------------------ | ---------------------- | --------------------- |
-| Standard (default)       | _(no flag needed)_     | ACT, Diffusion Policy |
-| Real-Time Chunking (RTC) | `--inference.type=rtc` | Pi0, Pi0.5, SmolVLA   |
+| 标准模式（默认） | _（无需标志）_ | ACT, Diffusion Policy |
+| 实时分块（RTC） | `--inference.type=rtc` | Pi0, Pi0.5, SmolVLA |
 
 ---
 
-## Step-by-Step Guide
+## 分步指南
 
-### Step 1: Pre-train a Base Policy
+### 步骤 1：预训练基础策略
 
-First, train a policy on your demonstration dataset:
+首先，在您的演示数据集上训练一个策略：
 
 ```bash
 python src/lerobot/scripts/lerobot_train.py \
@@ -92,9 +92,9 @@ python src/lerobot/scripts/lerobot_train.py \
     --steps=50000
 ```
 
-### Step 2: Collect HIL Data
+### 步骤 2：采集 HIL 数据
 
-**Standard inference (ACT, Diffusion Policy):**
+**标准推理（ACT, Diffusion Policy）：**
 
 ```bash
 lerobot-rollout --strategy.type=dagger \
@@ -115,9 +115,9 @@ lerobot-rollout --strategy.type=dagger \
     --interpolation_multiplier=2
 ```
 
-**With RTC for large models (Pi0, Pi0.5, SmolVLA):**
+**使用 RTC 处理大型模型（Pi0, Pi0.5, SmolVLA）：**
 
-For models with high inference latency, enable RTC for smooth execution:
+对于推理延迟高的模型，启用 RTC 以实现流畅执行：
 
 ```bash
 lerobot-rollout --strategy.type=dagger \
@@ -142,47 +142,47 @@ lerobot-rollout --strategy.type=dagger \
     --interpolation_multiplier=3
 ```
 
-**Controls (Conceptual):**
+**控制方式（概念说明）：**
 
-The interaction model is:
+交互模型如下：
 
-- **Pause input**: pause autonomous policy execution
-- **Takeover input**: transfer control to the human operator and record intervention data
-- **Return-to-policy input**: hand control back to the policy and continue the same episode
-- **Episode control inputs**: save/re-record/stop/reset as needed
+- **暂停输入**：暂停自主策略执行
+- **接管输入**：将控制权移交给人类操作员并记录干预数据
+- **交还策略输入**：将控制权交还给策略，继续同一个回合
+- **回合控制输入**：根据需要保存/重新录制/停止/重置
 
-Exact key/pedal bindings can differ across scripts and hardware integrations. Use each script's printed controls as the source of truth for the concrete mapping on your setup.
+具体的按键/踏板绑定可能因脚本和硬件集成而异。请以每个脚本打印的控制说明作为您设备上具体映射的依据。
 
-**The HIL Protocol:**
+**HIL 协议：**
 
-1. Watch the policy run autonomously (teleop is idle/free)
-2. When you see imminent failure, trigger the **pause input**
-   - Policy stops
-   - Teleoperator moves to match robot position (torque enabled)
-   - No frames recorded during pause
-3. Trigger the **takeover input** to take control
-   - Teleoperator torque disabled, free to move
-   - **Recovery**: Teleoperate the robot back to a good state
-   - **Correction**: Correct the behavior
-   - All movements are recorded
-4. Trigger the **return-to-policy input**
-   - Policy resumes autonomous execution from the current state
-   - You can intervene again at any time (repeat steps 2–4)
-5. End and save the episode when the task is complete (or episode time limit is reached)
-6. **Reset**: Teleop moves to robot position, you can move the robot to the starting position
-7. Start the next episode
+1. 观察策略自主运行（远程操控设备空闲/自由状态）
+2. 当发现即将失败时，触发**暂停输入**
+   - 策略停止
+   - 远程操控设备移动到匹配机器人位置（扭矩启用）
+   - 暂停期间不记录帧
+3. 触发**接管输入**以获得控制权
+   - 远程操控设备扭矩禁用，可以自由移动
+   - **恢复**：远程操控机器人回到良好状态
+   - **修正**：修正错误行为
+   - 所有动作均被记录
+4. 触发**交还策略输入**
+   - 策略从当前状态恢复自主执行
+   - 您可以随时再次干预（重复步骤 2–4）
+5. 任务完成（或达到回合时间限制）时结束并保存回合
+6. **重置**：远程操控设备移动到机器人位置，您可以移动机器人到起始位置
+7. 开始下一个回合
 
-**Foot Pedal Setup (Linux):**
+**脚踏板设置（Linux）：**
 
-If using a USB foot pedal (PCsensor FootSwitch), ensure access:
+如果使用 USB 脚踏板（PCsensor FootSwitch），请确保访问权限：
 
 ```bash
 sudo setfacl -m u:$USER:rw /dev/input/by-id/usb-PCsensor_FootSwitch-event-kbd
 ```
 
-### Step 3: Fine-tune the Policy
+### 步骤 3：微调策略
 
-Fine-tune on the **combined** dataset (`demo-dataset` + `hil-dataset` merged together):
+在**合并后的**数据集（`demo-dataset` + `hil-dataset` 合并在一起）上进行微调：
 
 ```bash
 python src/lerobot/scripts/lerobot_train.py \
@@ -193,49 +193,49 @@ python src/lerobot/scripts/lerobot_train.py \
     --steps=20000
 ```
 
-Then deploy the fine-tuned policy and repeat from Step 2 to target its remaining failure modes.
+然后部署微调后的策略，并从步骤 2 开始重复，以针对其剩余的失败模式。
 
 ---
 
-## Tips for Effective HIL Collection
+## 高效进行 HIL 采集的技巧
 
-### When to Intervene
+### 何时干预
 
-Intervene when you see:
+当观察到以下情况时进行干预：
 
-- Robot about to make an irreversible mistake
-- Robot hesitating or showing uncertain behavior
-- Robot deviating from the expected trajectory
+- 机器人即将犯下不可逆转的错误
+- 机器人犹豫不决或表现出不确定的行为
+- 机器人偏离预期轨迹
 
-### Recovery: Teleoperating Back to a Good State
+### 恢复：远程操控回到良好状态
 
-During recovery, teleoperate the robot back to a state where:
+在恢复过程中，将机器人远程操控回到以下状态：
 
-- The robot is in a familiar, in-distribution configuration
-- The current subtask can still be completed
-- The recovery trajectory itself is informative training data
+- 机器人处于熟悉且符合分布（in-distribution）的配置
+- 当前子任务仍然可以完成
+- 恢复轨迹本身是富有信息量的训练数据
 
-### Quality of Corrections
+### 修正的质量
 
-During correction:
+在修正过程中：
 
-- Provide **confident, clean** trajectories
-- Complete the current subtask fully
-- Don't overcorrect or add unnecessary movements
+- 提供**自信、干净**的轨迹
+- 完整完成当前子任务
+- 不要过度修正或添加不必要的动作
 
 ---
 
-## Related Work
+## 相关工作
 
-This HIL data collection approach builds on ideas from interactive imitation learning:
+这种 HIL 数据采集方法建立在交互式模仿学习的思想之上：
 
-- **DAgger** (Ross et al., 2011) introduced the core idea: instead of only training on expert demonstrations, query the expert for corrections on states the _learner_ visits. This breaks the compounding-error cycle of standard behavioral cloning by iteratively collecting on-policy data.
+- **DAgger**（Ross 等，2011）提出了核心思想：不仅在专家演示上训练，而是在_学习者_访问到的状态上向专家查询修正。这通过在迭代中收集策略内数据（on-policy data），打破了标准行为克隆的误差累积循环。
 
-- **HG-DAgger** (Kelly et al., 2019) made this practical for robotics: a human expert monitors the robot and only intervenes when needed, rather than labeling every state. The gating between autonomous and human control is exactly the pause → takeover → return-to-policy loop used in the scripts here.
+- **HG-DAgger**（Kelly 等，2019）使其在机器人领域变得实用：人类专家监控机器人，仅在需要时进行干预，而不是标注每个状态。自主控制与人工控制之间的切换，就是此处脚本中使用的"暂停 → 接管 → 交还策略"循环。
 
-- **RaC** (Hu et al., 2025) scales this loop to long-horizon tasks by explicitly decomposing interventions into **recovery** (teleoperating back to a good state) and **correction** (demonstrating the right behavior from there). This decomposition is the protocol followed by the DAgger strategy in `lerobot-rollout`.
+- **RaC**（Hu 等，2025）通过将干预明确分解为**恢复**（远程操控回到良好状态）和**修正**（从该状态开始演示正确的行为），将这个循环扩展到长时域任务。这种分解正是 `lerobot-rollout` 中 DAgger 策略所遵循的协议。
 
-- **π0.6/RECAP** (Physical Intelligence, 2025) applies the same iterative collect-and-finetune loop at scale with VLA models, showing that even large pretrained policies benefit substantially from targeted human corrections on their own failure modes. π0.6 is trained using RECAP.
+- **π0.6/RECAP**（Physical Intelligence，2025）在 VLA 模型规模上应用了相同的迭代采集-微调循环，表明即使是大型预训练策略，也能从针对其自身失败模式的人类修正中显著受益。π0.6 就是使用 RECAP 训练的。
 
 ```bibtex
 @article{ross2011dagger,

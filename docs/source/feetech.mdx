@@ -1,71 +1,71 @@
-# Feetech Motor Firmware Update
+# Feetech 电机固件更新
 
-This tutorial guides you through updating the firmware of Feetech motors using the official Feetech software.
+本教程将指导你使用官方 Feetech 软件更新 Feetech 电机的固件。
 
-## Prerequisites
+## 前提条件
 
-- Windows computer (Feetech software is only available for Windows)
-- Feetech motor control board
-- USB cable to connect the control board to your computer
-- Feetech motors connected to the control board
+- Windows 电脑（Feetech 软件仅适用于 Windows）
+- Feetech 电机控制板
+- USB 线缆，用于连接控制板到电脑
+- 连接到控制板的 Feetech 电机
 
-## Step 1: Download Feetech Software
+## 步骤 1：下载 Feetech 软件
 
-1. Visit the official Feetech software download page: [https://www.feetechrc.com/software.html](https://www.feetechrc.com/software.html)
-2. Download the latest version of the Feetech debugging software (FD)
-3. Install the software on your Windows computer
+1. 访问 Feetech 官方软件下载页面：[https://www.feetechrc.com/software.html](https://www.feetechrc.com/software.html)
+2. 下载最新版本的 Feetech 调试软件（FD）
+3. 在 Windows 电脑上安装该软件
 
-## Step 2: Hardware Setup
+## 步骤 2：硬件设置
 
-1. Connect your Feetech motors to the motor control board
-2. Connect the motor control board to your Windows computer via USB cable
-3. Ensure power is supplied to the motors
+1. 将 Feetech 电机连接到电机控制板
+2. 通过 USB 线缆将电机控制板连接到你的 Windows 电脑
+3. 确保电机已接通电源
 
-## Step 3: Configure Connection
+## 步骤 3：配置连接
 
-1. Launch the Feetech debugging software
-2. Select the correct COM port from the port dropdown menu
-   - If unsure which port to use, check Windows Device Manager under "Ports (COM & LPT)"
-3. Set the appropriate baud rate (typically 1000000 for most Feetech motors)
-4. Click "Open" to establish communication with the control board
+1. 启动 Feetech 调试软件
+2. 从端口下拉菜单中选择正确的 COM 端口
+   - 如果不确定使用哪个端口，请在 Windows 设备管理器中查看"端口（COM 和 LPT）"
+3. 设置合适的波特率（大多数 Feetech 电机通常为 1000000）
+4. 点击"打开"以建立与控制板的通信
 
-## Step 4: Scan for Motors
+## 步骤 4：扫描电机
 
-1. Once connected, click the "Search" button to detect all connected motors
-2. The software will automatically discover and list all motors on the bus
-3. Each motor will appear with its ID number
+1. 连接成功后，点击"搜索"按钮检测所有已连接的电机
+2. 软件将自动发现并列出总线上的所有电机
+3. 每个电机将显示其 ID 号
 
-## Step 5: Update Firmware
+## 步骤 5：更新固件
 
-For each motor you want to update:
+对于每个需要更新的电机：
 
-1. **Select the motor** from the list by clicking on it
-2. **Click on Upgrade tab**:
-3. **Click on Online button**:
-   - If an potential firmware update is found, it will be displayed in the box
-4. **Click on Upgrade button**:
-   - The update progress will be displayed
+1. **选择电机**：在列表中点击该电机
+2. **点击升级选项卡**：
+3. **点击在线按钮**：
+   - 如果发现可用的固件更新，将显示在框中
+4. **点击升级按钮**：
+   - 将显示更新进度
 
-## Step 6: Verify Update
+## 步骤 6：验证更新
 
-1. After the update completes, the software should automatically refresh the motor information
-2. Verify that the firmware version has been updated to the expected version
+1. 更新完成后，软件应自动刷新电机信息
+2. 验证固件版本已更新到预期版本
 
-## Important Notes
+## 重要提示
 
-⚠️ **Warning**: Do not disconnect power or USB during firmware updates, it will potentially brick the motor.
+⚠️ **警告**：固件更新过程中请勿断开电源或 USB 连接，否则可能导致电机变砖。
 
-## Bonus: Motor Debugging on Linux/macOS
+## 额外内容：在 Linux/macOS 上调试电机
 
-For debugging purposes only, you can use the open-source Feetech Debug Tool:
+仅用于调试目的，你可以使用开源的 Feetech 调试工具：
 
-- **Repository**: [FT_SCServo_Debug_Qt](https://github.com/CarolinePascal/FT_SCServo_Debug_Qt/tree/fix/port-search-timer)
+- **仓库地址**：[FT_SCServo_Debug_Qt](https://github.com/CarolinePascal/FT_SCServo_Debug_Qt/tree/fix/port-search-timer)
 
-### Installation Instructions
+### 安装说明
 
-Follow the instructions in the repository to install the tool, for Ubuntu you can directly install it, for MacOS you need to build it from source.
+按照仓库中的说明安装该工具，Ubuntu 可直接安装，MacOS 需要从源码编译。
 
-**Limitations:**
+**限制说明：**
 
-- This tool is for debugging and parameter adjustment only
-- Firmware updates must still be done on Windows with official Feetech software
+- 此工具仅用于调试和参数调整
+- 固件更新仍必须在 Windows 上使用官方 Feetech 软件完成

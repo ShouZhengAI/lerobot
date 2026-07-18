@@ -1,80 +1,80 @@
 # EO-1
 
-EO-1 is a **Vision-Language-Action policy for robot control**. The LeRobot implementation integrates EO-1 with the standard LeRobot training, evaluation, processor interface.
+EO-1 是一种用于机器人控制的**视觉-语言-动作策略（Vision-Language-Action Policy）**。LeRobot 实现将 EO-1 集成了标准的 LeRobot 训练、评估和处理器接口。
 
-## Model Overview
+## 模型概述
 
-EO-1 uses a Qwen2.5-VL backbone for vision-language understanding and adds a continuous flow-matching action head for robot control. The policy formats each robot-control sample as a multimodal conversation: camera images are passed to Qwen2.5-VL, the robot state is represented with EO-1 state tokens, and the future action chunk is represented with EO-1 action tokens.
+EO-1 使用 Qwen2.5-VL 骨干网络进行视觉-语言理解，并添加了一个连续流匹配动作头用于机器人控制。该策略将每个机器人控制样本格式化为多模态对话：相机图像传入 Qwen2.5-VL，机器人状态用 EO-1 状态令牌（state tokens）表示，未来的动作块用 EO-1 动作令牌（action tokens）表示。
 
 <img
   src="https://huggingface.co/datasets/HaomingSong/lerobot-documentation-images/resolve/main/lerobot/eo_pipeline.png"
-  alt="An overview of EO-1"
+  alt="EO-1 概览"
   width="85%"
 />
 
-During training, EO-1 learns to denoise continuous action chunks at the action-token positions. During inference, it samples an action chunk, returns continuous actions, and executes `n_action_steps` from the chunk before sampling again.
+在训练过程中，EO-1 学习在动作令牌位置上对连续动作块进行去噪。在推理过程中，它采样一个动作块，返回连续动作，并执行该块中的 `n_action_steps` 步动作，然后再次采样。
 
-### What the LeRobot Integration Covers
+### LeRobot 集成涵盖的内容
 
-- Standard `policy.type=eo1` configuration through LeRobot
-- Qwen2.5-VL image and text preprocessing through policy processors
-- Continuous flow-matching action prediction
-- Checkpoint save/load through LeRobot policy APIs
-- Training with `lerobot-train` and evaluation with `lerobot-eval`
+- 通过 LeRobot 标准化的 `policy.type=eo1` 配置
+- 通过策略处理器（policy processors）进行 Qwen2.5-VL 图像和文本预处理
+- 连续流匹配动作预测
+- 通过 LeRobot 策略 API 进行检查点保存/加载
+- 使用 `lerobot-train` 进行训练，使用 `lerobot-eval` 进行评估
 
-The broader EO-1 project also includes interleaved vision-text-action pretraining and multimodal reasoning workflows. This page focuses on the LeRobot robot-control policy path.
+更广泛的 EO-1 项目还包括交错的视觉-文本-动作预训练和多模态推理工作流。本页面聚焦于 LeRobot 机器人控制策略路径。
 
-## Installation Requirements
+## 安装要求
 
-1. Install LeRobot by following the [Installation Guide](./installation).
-2. Install EO-1 dependencies by running:
+1. 按照[安装指南](./installation)安装 LeRobot。
+2. 安装 EO-1 依赖项，运行：
 
    ```bash
    pip install -e ".[eo1]"
    ```
 
-3. If you want to train or evaluate on LIBERO, install the LIBERO dependencies too:
+3. 如果要在 LIBERO 上进行训练或评估，也请安装 LIBERO 依赖项：
 
    ```bash
    pip install -e ".[eo1,libero]"
    ```
 
-EO-1 can use the standard PyTorch scaled-dot-product attention backend through `policy.attn_implementation=sdpa`. If your environment has a compatible `flash_attn` installation, you can request `policy.attn_implementation=flash_attention_2`.
+EO-1 可以通过 `policy.attn_implementation=sdpa` 使用标准的 PyTorch 缩放点积注意力后端。如果你的环境安装了兼容的 `flash_attn`，可以使用 `policy.attn_implementation=flash_attention_2`。
 
-## Data Requirements
+## 数据要求
 
-EO-1 expects a LeRobot dataset with:
+EO-1 期望的 LeRobot 数据集包含：
 
-- At least one visual observation, for example `observation.images.image`
+- 至少一个视觉观测，例如 `observation.images.image`
 - `observation.state`
 - `action`
-- A language task instruction through the dataset `task` field
+- 通过数据集 `task` 字段提供的语言任务指令
 
-If your dataset uses different observation names, use `rename_map` to align them with the names expected by your training or evaluation setup.
+如果你的数据集使用了不同的观测名称，请使用 `rename_map` 将它们与你训练或评估配置中期望的名称对齐。
 
-## Usage
+## 使用方法
 
-To use EO-1 in a LeRobot configuration, specify the policy type as:
+要在 LeRobot 配置中使用 EO-1，将策略类型指定为：
 
 ```python
 policy.type=eo1
 ```
 
-By default, a new EO-1 policy initializes its backbone from:
+默认情况下，新的 EO-1 策略从以下位置初始化其骨干网络：
 
 ```python
 policy.vlm_base=Qwen/Qwen2.5-VL-3B-Instruct
 ```
 
-Once a LeRobot-format EO-1 checkpoint is available, load it with:
+一旦有了 LeRobot 格式的 EO-1 检查点，通过以下方式加载：
 
 ```python
 policy.path=your-org/your-eo1-checkpoint
 ```
 
-## Training
+## 训练
 
-### Training Command Example
+### 训练命令示例
 
 ```bash
 lerobot-train \
@@ -91,26 +91,26 @@ lerobot-train \
   --policy.device=cuda
 ```
 
-### Key Training Parameters
+### 关键训练参数
 
-| Parameter                              | Default                       | Description                                                             |
-| -------------------------------------- | ----------------------------- | ----------------------------------------------------------------------- |
-| `policy.vlm_base`                      | `Qwen/Qwen2.5-VL-3B-Instruct` | Qwen2.5-VL checkpoint used to initialize a new policy                   |
-| `policy.dtype`                         | `auto`                        | Backbone dtype request: `auto`, `bfloat16`, or `float32`                |
-| `policy.attn_implementation`           | `None`                        | Optional Qwen attention backend, such as `sdpa`                         |
-| `policy.gradient_checkpointing`        | `false`                       | Reduces memory usage during training                                    |
-| `policy.chunk_size`                    | `8`                           | Number of future actions predicted per chunk                            |
-| `policy.n_action_steps`                | `8`                           | Number of actions consumed from a sampled chunk                         |
-| `policy.num_denoise_steps`             | `10`                          | Number of flow-matching denoising steps used during sampling            |
-| `policy.max_state_dim`                 | `32`                          | State padding dimension                                                 |
-| `policy.max_action_dim`                | `32`                          | Action padding dimension                                                |
-| `policy.force_fp32_autocast`           | `true`                        | Keeps the flow head in fp32 even when the backbone uses mixed precision |
-| `policy.supervise_padding_action_dims` | `true`                        | Controls whether padded action dimensions are supervised                |
-| `policy.supervise_padding_actions`     | `true`                        | Controls whether padded future action rows are supervised               |
+| 参数                                  | 默认值                         | 描述                                          |
+| ------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| `policy.vlm_base`                      | `Qwen/Qwen2.5-VL-3B-Instruct`  | 用于初始化新策略的 Qwen2.5-VL 检查点                         |
+| `policy.dtype`                         | `auto`                          | 骨干网络数据类型请求：`auto`、`bfloat16` 或 `float32`          |
+| `policy.attn_implementation`           | `None`                          | 可选的 Qwen 注意力后端，例如 `sdpa`                            |
+| `policy.gradient_checkpointing`        | `false`                         | 在训练期间减少内存使用                        |
+| `policy.chunk_size`                    | `8`                             | 每个块预测的未来动作数量                      |
+| `policy.n_action_steps`                | `8`                             | 从采样块中消费的动作数量                     |
+| `policy.num_denoise_steps`             | `10`                            | 采样过程中使用的流匹配去噪步数            |
+| `policy.max_state_dim`                 | `32`                            | 状态填充维度                                  |
+| `policy.max_action_dim`                | `32`                            | 动作填充维度                                 |
+| `policy.force_fp32_autocast`           | `true`                          | 即使骨干网络使用混合精度，也将流头保持在 fp32              |
+| `policy.supervise_padding_action_dims` | `true`                          | 控制是否对填充的动作维度进行监督               |
+| `policy.supervise_padding_actions`     | `true`                          | 控制是否对填充的未来动作行进行监督              |
 
-## Evaluation
+## 评估
 
-EO-1 can be evaluated through `lerobot-eval` once you have a LeRobot-format checkpoint:
+一旦有了 LeRobot 格式的检查点，可以通过 `lerobot-eval` 评估 EO-1：
 
 ```bash
 lerobot-eval \
@@ -121,7 +121,7 @@ lerobot-eval \
   --eval.n_episodes=20
 ```
 
-For datasets or environments whose camera names differ from the checkpoint configuration, pass a `rename_map`:
+如果数据集或环境的相机名称与检查点配置不同，传入 `rename_map`：
 
 ```bash
 lerobot-eval \
@@ -131,27 +131,27 @@ lerobot-eval \
   --rename_map='{"observation.images.image2":"observation.images.wrist_image"}'
 ```
 
-## Configuration Notes
+## 配置说明
 
-### Image Processing
+### 图像处理
 
-EO-1 uses the Qwen2.5-VL processor. The `policy.image_min_pixels` and `policy.image_max_pixels` settings control the image resizing bounds before the visual tokens are passed into the backbone.
+EO-1 使用 Qwen2.5-VL 处理器（processor）。`policy.image_min_pixels` 和 `policy.image_max_pixels` 设置控制图像在视觉令牌传入骨干网络之前的缩放范围。
 
-### State and Action Dimensions
+### 状态和动作维度
 
-The policy pads state and action vectors to `policy.max_state_dim` and `policy.max_action_dim` before the EO-1 flow head. Predictions are cropped back to the original action dimension before being returned by the policy.
+该策略在 EO-1 流头之前将状态和动作向量填充到 `policy.max_state_dim` 和 `policy.max_action_dim`。预测结果在由策略返回之前裁剪回原始动作维度。
 
-### Attention Backend
+### 注意力后端
 
-Use `policy.attn_implementation=sdpa` for a portable setup. Use `flash_attention_2` only when `flash_attn` is installed and compatible with your environment.
+使用 `policy.attn_implementation=sdpa` 实现可移植配置。仅在安装了 `flash_attn` 且与你的环境兼容时使用 `flash_attention_2`。
 
-## References
+## 参考文献
 
-- [EO-1 project](https://github.com/EO-Robotics/EO1)
-- [EO-1 paper](https://arxiv.org/abs/2508.21112)
+- [EO-1 项目](https://github.com/EO-Robotics/EO1)
+- [EO-1 论文](https://arxiv.org/abs/2508.21112)
 - [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct)
 
-## Citation
+## 引用
 
 ```bibtex
 @article{eo1,
@@ -163,6 +163,6 @@ Use `policy.attn_implementation=sdpa` for a portable setup. Use `flash_attention
 }
 ```
 
-## License
+## 许可协议
 
-This LeRobot integration follows the **Apache 2.0 License** used by LeRobot. Check the upstream EO-1 model and dataset pages for the licenses of released EO-1 checkpoints and data.
+此 LeRobot 集成遵循 LeRobot 使用的 **Apache 2.0 许可协议**。已发布的 EO-1 检查点和数据的许可协议请参阅上游 EO-1 模型和数据集页面。

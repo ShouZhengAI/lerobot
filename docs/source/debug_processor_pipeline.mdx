@@ -1,106 +1,99 @@
-# Debug Your Processor Pipeline
+# 调试处理管线（Processor Pipeline）
 
-Processor pipelines can be complex, especially when chaining multiple transformation steps.
-Unlike simple function calls, pipelines lack natural observability, you can't easily see what happens
-between each step or where things go wrong.
-This guide provides debugging tools and techniques specifically designed to address these challenges
-and help you understand data flow through your pipelines.
+处理管线可能非常复杂，尤其是在链式组合多个转换步骤时。与简单的函数调用不同，管线缺乏天然的可观测性——你无法轻易看到每个步骤之间的处理过程，也难以定位问题所在。本指南提供了专门设计的调试工具和技术，帮助你应对这些挑战，理解数据在管线中的流动过程。
 
-We'll explore three complementary debugging approaches: **hooks** for runtime monitoring, **step-through debugging** for detailed inspection, and **feature validation** for catching structural mismatches. Each serves a different purpose and together they provide complete visibility into your pipeline's behavior.
+我们将探讨三种互补的调试方法：用于运行时监控的**钩子（Hook）**、用于详细检查的**逐步调试（Step-through Debugging）**，以及用于捕获结构不匹配问题的**特征验证（Feature Validation）**。每种方法服务于不同的目的，三者结合可以为你的管线行为提供全方位的可见性。
 
-## Understanding Hooks
+## 理解钩子（Hook）
 
-Hooks are functions that get called at specific points during pipeline execution.
-They provide a way to inspect, monitor, or modify data without changing your pipeline code.
-Think of them as "event listeners" for your pipeline.
+钩子是在管线执行过程中特定时刻被调用的函数。它们提供了一种在不修改管线代码的情况下检查、监控或修改数据的方式。可以将其视为管线的"事件监听器"。
 
-### What is a Hook?
+### 什么是钩子（Hook）？
 
-A hook is a callback function that gets automatically invoked at specific moments during pipeline execution.
-The concept comes from event-driven programming, imagine you could "hook into" the pipeline's execution flow to observe or react to what's happening.
+钩子是一个回调函数，在管线执行的特定时刻被自动调用。这个概念源于事件驱动编程——你可以想象自己"钩入"管线的执行流来观察或响应正在发生的事情。
 
-Think of hooks like inserting checkpoints into your pipeline. Every time the pipeline reaches one of these checkpoints, it pauses briefly to call your hook function, giving you a chance to inspect the current state, log information, and validate data.
+可以把钩子想象成在管线中插入的检查点。每当管线到达其中一个检查点时，它会短暂暂停并调用你的钩子函数，让你有机会检查当前状态、记录信息并验证数据。
 
-A hook is simply a function that accepts two parameters:
+钩子就是一个接受两个参数的函数：
 
-- `step_idx: int` - The index of the current processing step (0, 1, 2, etc.)
-- `transition: EnvTransition` - The data transition at that point in the pipeline
+- `step_idx: int` — 当前处理步骤的索引（0, 1, 2 等）
+- `transition: EnvTransition` — 管线在该点的数据转换（transition）
 
-The beauty of hooks is their non-invasive nature: you can add monitoring, validation, or debugging logic without changing a single line of your pipeline code. The pipeline remains clean and focused on its core logic, while hooks handle the cross-cutting concerns like logging, monitoring, and debugging.
+钩子之美在于其非侵入性：你可以在不修改管线代码的情况下添加监控、验证或调试逻辑。管线保持干净并专注于核心逻辑，而钩子负责处理日志记录、监控和调试等横切关注点。
 
-### Before vs After Hooks
+### 前置钩子与后置钩子
 
-The pipeline supports two types of hooks:
+管线支持两种类型的钩子：
 
-- **Before hooks** (`register_before_step_hook`) - Called before each step executes
-- **After hooks** (`register_after_step_hook`) - Called after each step completes
+- **前置钩子**（`register_before_step_hook`）— 在每个步骤执行前调用
+- **后置钩子**（`register_after_step_hook`）— 在每个步骤完成后调用
 
 ```python
 def before_hook(step_idx: int, transition: EnvTransition):
-    """Called before step processes the transition."""
-    print(f"About to execute step {step_idx}")
-    # Useful for: logging, validation, setup
+    """在步骤处理 transition 之前调用。"""
+    print(f"即将执行步骤 {step_idx}")
+    # 用途：日志记录、验证、设置
 
 def after_hook(step_idx: int, transition: EnvTransition):
-    """Called after step has processed the transition."""
-    print(f"Completed step {step_idx}")
-    # Useful for: monitoring results, cleanup, debugging
+    """在步骤处理完 transition 之后调用。"""
+    print(f"步骤 {step_idx} 已完成")
+    # 用途：结果监控、清理、调试
 
 processor.register_before_step_hook(before_hook)
 processor.register_after_step_hook(after_hook)
 ```
 
-### Implementing a NaN Detection Hook
+### 实现 NaN 检测钩子
 
-Here's a practical example of a hook that detects NaN values:
+以下是一个检测 NaN 值的钩子示例：
 
 ```python
 def check_nans(step_idx: int, transition: EnvTransition):
-    """Check for NaN values in observations."""
+    """检查观测值中是否存在 NaN 值。"""
     obs = transition.get(TransitionKey.OBSERVATION)
     if obs:
         for key, value in obs.items():
             if isinstance(value, torch.Tensor) and torch.isnan(value).any():
-                print(f"NaN detected in {key} at step {step_idx}")
+                print(f"在步骤 {step_idx} 的 {key} 中检测到 NaN")
 
-# Register the hook to run after each step
+# 注册钩子，使其在每一步之后执行
 processor.register_after_step_hook(check_nans)
 
-# Process your data - the hook will be called automatically
+# 处理数据——钩子会自动被调用
 output = processor(input_data)
 
-# Remove the hook when done debugging
+# 调试完成后移除钩子
 processor.unregister_after_step_hook(check_nans)
 ```
 
-### How Hooks Work Internally
+### 钩子的内部工作原理
 
-Understanding the internal mechanism helps you use hooks more effectively. The pipeline maintains two separate lists: one for before-step hooks and another for after-step hooks. When you register a hook, it's simply appended to the appropriate list.
+了解内部机制有助于你更有效地使用钩子。管线维护了两个独立的列表：一个用于前置钩子，另一个用于后置钩子。当你注册一个钩子时，它会被追加到相应的列表中。
 
-During execution, the pipeline follows a strict sequence: for each processing step, it first calls all before-hooks in registration order, then executes the actual step transformation, and finally calls all after-hooks in registration order. This creates a predictable, sandwich-like structure around each step.
+在执行过程中，管线遵循严格的顺序：对于每个处理步骤，它首先按注册顺序调用所有前置钩子，然后执行实际的步骤转换，最后按注册顺序调用所有后置钩子。这就在每个步骤周围形成了一个可预测的"三明治"式结构。
 
-The key insight is that hooks don't change the core pipeline logic—they're purely additive. The pipeline's `_forward` method orchestrates this dance between hooks and processing steps, ensuring that your debugging or monitoring code runs at exactly the right moments without interfering with the main data flow.
+关键在于钩子不会改变管线的核心逻辑——它们是纯粹的附加功能。管线的 `_forward` 方法协调钩子与处理步骤之间的配合，确保你的调试或监控代码在完全正确的时刻运行，而不会干扰主数据流。
 
-Here's a simplified view of how the pipeline executes hooks:
+以下是管线执行钩子的简化示意：
 
 ```python
 class DataProcessorPipeline:
     def __init__(self):
         self.steps = [...]
-        self.before_step_hooks = []  # List of before hooks
-        self.after_step_hooks = []   # List of after hooks
+        self.before_step_hooks = []  # 前置钩子列表
+        self.after_step_hooks = []   # 后置钩子列表
 
     def _forward(self, transition):
-        """Internal method that processes the transition through all steps."""
+        """在所有步骤中处理 transition 的内部方法。"""
         for step_idx, processor_step in enumerate(self.steps):
-            # 1. Call all BEFORE hooks
+            # 1. 调用所有前置钩子
             for hook in self.before_step_hooks:
                 hook(step_idx, transition)
 
-            # 2. Execute the actual processing step
+            # 2. 执行实际的处理步骤
             transition = processor_step(transition)
 
-            # 3. Call all AFTER hooks
+            # 3. 调用所有后置钩子
             for hook in self.after_step_hooks:
                 hook(step_idx, transition)
 
@@ -113,81 +106,81 @@ class DataProcessorPipeline:
         self.after_step_hooks.append(hook_fn)
 ```
 
-### Execution Flow
+### 执行流程
 
-The execution flow looks like this:
+执行流程如下所示：
 
 ```
-Input → Before Hook → Step 0 → After Hook → Before Hook → Step 1 → After Hook → ... → Output
+输入 → 前置钩子 → 步骤 0 → 后置钩子 → 前置钩子 → 步骤 1 → 后置钩子 → ... → 输出
 ```
 
-For example, with 3 steps and both hook types:
+例如，包含 3 个步骤和两种钩子的情况：
 
 ```python
 def timing_before(step_idx, transition):
-    print(f"⏱️  Starting step {step_idx}")
+    print(f"⏱️  开始步骤 {step_idx}")
 
 def validation_after(step_idx, transition):
-    print(f"✅ Completed step {step_idx}")
+    print(f"✅ 完成步骤 {step_idx}")
 
 processor.register_before_step_hook(timing_before)
 processor.register_after_step_hook(validation_after)
 
-# This will output:
-# ⏱️  Starting step 0
-# ✅ Completed step 0
-# ⏱️  Starting step 1
-# ✅ Completed step 1
-# ⏱️  Starting step 2
-# ✅ Completed step 2
+# 输出：
+# ⏱️  开始步骤 0
+# ✅ 完成步骤 0
+# ⏱️  开始步骤 1
+# ✅ 完成步骤 1
+# ⏱️  开始步骤 2
+# ✅ 完成步骤 2
 ```
 
-### Multiple Hooks
+### 多钩子
 
-You can register multiple hooks of the same type - they execute in the order registered:
+你可以注册多个相同类型的钩子——它们按注册顺序执行：
 
 ```python
 def log_shapes(step_idx: int, transition: EnvTransition):
     obs = transition.get(TransitionKey.OBSERVATION)
     if obs:
-        print(f"Step {step_idx} observation shapes:")
+        print(f"步骤 {step_idx} 观测值形状：")
         for key, value in obs.items():
             if isinstance(value, torch.Tensor):
                 print(f"  {key}: {value.shape}")
 
-processor.register_after_step_hook(check_nans)      # Executes first
-processor.register_after_step_hook(log_shapes)     # Executes second
+processor.register_after_step_hook(check_nans)      # 第一个执行
+processor.register_after_step_hook(log_shapes)     # 第二个执行
 
-# Both hooks will be called after each step in registration order
+# 两个钩子会在每一步之后按注册顺序被调用
 output = processor(input_data)
 ```
 
-While hooks are excellent for monitoring specific issues (like NaN detection) or gathering metrics during normal pipeline execution, sometimes you need to dive deeper. When you want to understand exactly what happens at each step or debug complex transformation logic, step-through debugging provides the detailed inspection you need.
+虽然钩子非常适合监控特定问题（如 NaN 检测）或在管线正常运行期间收集指标，但有时你需要更深入的分析。当你想了解每个步骤的详细处理过程或调试复杂的转换逻辑时，逐步调试提供了所需的详细检查能力。
 
-## Step-Through Debugging
+## 逐步调试
 
-Step-through debugging is like having a slow-motion replay for your pipeline. Instead of watching your data get transformed in one quick blur from input to output, you can pause and examine what happens after each individual step.
+逐步调试好比为管线提供了慢动作回放功能。你不需要眼睁睁看着数据从输入到输出瞬间完成转换，而是可以在每个步骤之后暂停并检查处理结果。
 
-This approach is particularly valuable when you're trying to understand a complex pipeline, debug unexpected behavior, or verify that each transformation is working as expected. Unlike hooks, which are great for automated monitoring, step-through debugging gives you manual, interactive control over the inspection process.
+这种方法在你试图理解复杂管线、调试意外行为或验证每个转换是否符合预期时尤其有用。与适合自动化监控的钩子不同，逐步调试为你提供了手动、交互式的检查过程控制权。
 
-The `step_through()` method is a generator that yields the transition state after each processing step, allowing you to inspect intermediate results. Think of it as creating a series of snapshots of your data as it flows through the pipeline—each snapshot shows you exactly what your data looks like after one more transformation has been applied.
+`step_through()` 方法是一个生成器（generator），它在每个处理步骤之后产生 transition 状态，让你可以检查中间结果。可以将它想象成在数据流经管线时创建一系列数据快照——每个快照都精确展示了你的数据在又经过一次转换后的样子。
 
-### How Step-Through Works
+### 逐步调试的工作原理
 
-The `step_through()` method fundamentally changes how the pipeline executes. Instead of running all steps in sequence and only returning the final result, it transforms the pipeline into an iterator that yields intermediate results.
+`step_through()` 方法从根本上改变了管线的执行方式。它不是按顺序运行所有步骤并只返回最终结果，而是将管线转换为一个迭代器，逐个产生中间结果。
 
-Here's what happens internally: the method starts by converting your input data into the pipeline's internal transition format, then yields this initial state. Next, it applies the first processing step and yields the result. Then it applies the second step to that result and yields again, and so on. Each `yield` gives you a complete snapshot of the transition at that point.
+内部执行过程如下：该方法首先将输入数据转换为管线内部的 transition 格式，然后产出这个初始状态。接下来，它应用第一个处理步骤并产出结果。然后对结果应用第二个步骤并再次产出，依此类推。每次 `yield` 都会给出该时刻 transition 的完整快照。
 
-This generator pattern is powerful because it's lazy—the pipeline only computes the next step when you ask for it. This means you can stop at any point, inspect the current state thoroughly, and decide whether to continue. You're not forced to run the entire pipeline just to debug one problematic step.
+这种生成器模式之所以强大，是因为它是惰性的——管线只在你请求时才计算下一步。这意味着你可以随时停止，彻底检查当前状态，并决定是否继续。你无需为了调试一个有问题的步骤而运行整个管线。
 
-Instead of running the entire pipeline and only seeing the final result, `step_through()` pauses after each step and gives you the intermediate transition:
+`step_through()` 不会运行整个管线并只展示最终结果，而是在每一步之后暂停并给出中间的 transition：
 
 ```python
-# This creates a generator that yields intermediate states
+# 这会创建一个产出中间状态的生成器
 for i, intermediate_result in enumerate(processor.step_through(input_data)):
-    print(f"=== After step {i} ===")
+    print(f"=== 步骤 {i} 之后 ===")
 
-    # Inspect the observation at this stage
+    # 检查该阶段的观测值
     obs = intermediate_result.get(TransitionKey.OBSERVATION)
     if obs:
         for key, value in obs.items():
@@ -195,43 +188,42 @@ for i, intermediate_result in enumerate(processor.step_through(input_data)):
                 print(f"{key}: shape={value.shape}, dtype={value.dtype}")
 ```
 
-### Interactive Debugging with Breakpoints
+### 使用断点进行交互式调试
 
-You can add breakpoints in the step-through loop to interactively debug:
+你可以在逐步调试循环中添加断点来进行交互式调试：
 
 ```python
-# Step through the pipeline with debugging
+# 逐步调试管线
 for i, intermediate in enumerate(processor.step_through(data)):
-    print(f"Step {i}: {processor.steps[i].__class__.__name__}")
+    print(f"步骤 {i}: {processor.steps[i].__class__.__name__}")
 
-    # Set a breakpoint to inspect the current state
-    breakpoint()  # Debugger will pause here
+    # 设置断点以检查当前状态
+    breakpoint()  # 调试器将在此处暂停
 
-    # You can now inspect 'intermediate' in the debugger:
-    # - Check tensor shapes and values
-    # - Verify expected transformations
-    # - Look for unexpected changes
+    # 你现在可以在调试器中检查 'intermediate'：
+    # - 检查张量形状和值
+    # - 验证预期转换
+    # - 查找意外变化
 ```
 
-During the debugger session, you can:
+在调试器会话中，你可以：
 
-- Examine `intermediate[TransitionKey.OBSERVATION]` to see observation data
-- Check `intermediate[TransitionKey.ACTION]` for action transformations
-- Inspect any part of the transition to understand what each step does
+- 检查 `intermediate[TransitionKey.OBSERVATION]` 来查看观测值数据
+- 检查 `intermediate[TransitionKey.ACTION]` 来查看动作变换
+- 检查 transition 的任何部分以了解每个步骤的作用
 
-Step-through debugging is perfect for understanding the _data_ transformations, but what about the _structure_ of that data? While hooks and step-through help you debug runtime behavior, you also need to ensure your pipeline produces data in the format expected by downstream components. This is where feature contract validation comes in.
+逐步调试非常适合理解数据的_值_变换，但数据的_结构_呢？虽然钩子和逐步调试可以帮助你调试运行时行为，但你还需确保管线生成的数据格式与下游组件兼容。这就是特征契约验证发挥作用的地方。
 
-## Validating Feature Contracts
+## 验证特征契约
 
-Feature contracts define what data structure your pipeline expects as input and produces as output.
-Validating these contracts helps catch mismatches early.
+特征契约定义了管线期望输入什么数据结构，以及输出什么数据结构。验证这些契约有助于及早捕获不匹配问题。
 
-### Understanding Feature Contracts
+### 理解特征契约
 
-Each processor step has a `transform_features()` method that describes how it changes the data structure:
+每个处理步骤都有一个 `transform_features()` 方法，描述它如何改变数据结构：
 
 ```python
-# Get the expected output features from your pipeline
+# 获取管线的预期输出特征
 initial_features = {
     PipelineFeatureType.OBSERVATION: {
         "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(7,)),
@@ -242,31 +234,31 @@ initial_features = {
     }
 }
 
-# Check what your pipeline will output
+# 检查管线的输出结果
 output_features = processor.transform_features(initial_features)
 
-print("Input features:")
+print("输入特征：")
 for feature_type, features in initial_features.items():
     print(f"  {feature_type}:")
     for key, feature in features.items():
         print(f"    {key}: {feature.type.value}, shape={feature.shape}")
 
-print("\nOutput features:")
+print("\n输出特征：")
 for feature_type, features in output_features.items():
     print(f"  {feature_type}:")
     for key, feature in features.items():
         print(f"    {key}: {feature.type.value}, shape={feature.shape}")
 ```
 
-### Verifying Expected Features
+### 验证预期特征
 
-Check that your pipeline produces the features you expect:
+检查你的管线是否生成了你期望的特征：
 
 ```python
-# Define what features you expect the pipeline to produce
+# 定义你期望管线生成的特征
 expected_keys = ["observation.state", "observation.image", "action"]
 
-print("Validating feature contract...")
+print("正在验证特征契约...")
 for expected_key in expected_keys:
     found = False
     for feature_type, features in output_features.items():
@@ -277,23 +269,23 @@ for expected_key in expected_keys:
             break
 
     if not found:
-        print(f"❌ Missing expected feature: {expected_key}")
+        print(f"❌ 缺少预期特征: {expected_key}")
 ```
 
-This validation helps ensure your pipeline will work correctly with downstream components that expect specific data structures.
+这种验证有助于确保你的管线能够与期望特定数据结构的其他组件正确配合。
 
-## Summary
+## 总结
 
-Now that you understand the three debugging approaches, you can tackle any pipeline issue systematically:
+现在你已经了解了三种调试方法，可以系统性地解决任何管线问题：
 
-1. **Hooks** - For runtime monitoring and validation without modifying pipeline code
-2. **Step-through** - For inspecting intermediate states and understanding transformations
-3. **Feature validation** - For ensuring data structure contracts are met
+1. **钩子（Hook）** — 无需修改管线代码即可进行运行时监控和验证
+2. **逐步调试（Step-through Debugging）** — 检查中间状态并理解转换过程
+3. **特征验证（Feature Validation）** — 确保满足数据结构契约
 
-**When to use each approach:**
+**何时使用每种方法：**
 
-- Start with **step-through debugging** when you need to understand what your pipeline does or when something unexpected happens
-- Add **hooks** for continuous monitoring during development and production to catch issues automatically
-- Use **feature validation** before deployment to ensure your pipeline works with downstream components
+- 需要了解管线做了什么或出现意外情况时，从**逐步调试**开始
+- 在开发和部署过程中添加**钩子**进行持续监控，自动捕获问题
+- 在部署前使用**特征验证**确保管线与下游组件兼容
 
-These three tools work together to give you the complete observability that complex pipelines naturally lack. With hooks watching for issues, step-through helping you understand behavior, and feature validation ensuring compatibility, you'll be able to debug any pipeline confidently and efficiently.
+这三种工具协同工作，为复杂管线提供天然缺失的完整可观测性。用钩子监控问题，用逐步调试理解行为，用特征验证确保兼容性——你就能自信且高效地调试任何管线。

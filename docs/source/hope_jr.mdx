@@ -1,34 +1,34 @@
 # HopeJR
 
-## Prerequisites
+## 前置条件
 
-- [Hardware Setup](https://github.com/TheRobotStudio/HOPEJr)
+- [硬件设置](https://github.com/TheRobotStudio/HOPEJr)
 
-## Install LeRobot
+## 安装 LeRobot
 
-Follow the [installation instructions](https://github.com/huggingface/lerobot#installation) to install LeRobot.
+按照[安装说明](https://github.com/huggingface/lerobot#installation)安装 LeRobot。
 
-Install LeRobot with HopeJR dependencies:
+安装带有 HopeJR 依赖的 LeRobot：
 
 ```bash
 pip install -e ".[hopejr]"
 ```
 
-## Device Configuration
+## 设备配置
 
-Before starting calibration and operation, you need to identify the USB ports for each HopeJR component. Run this script to find the USB ports for the arm, hand, glove, and exoskeleton:
+在开始校准和操作之前，你需要识别每个 HopeJR 组件的 USB 端口。运行以下脚本来查找机械臂、灵巧手、数据手套和外骨骼的 USB 端口：
 
 ```bash
 lerobot-find-port
 ```
 
-This will display the available USB ports and their associated devices. Make note of the port paths (e.g., `/dev/tty.usbmodem58760433331`, `/dev/tty.usbmodem11301`) as you'll need to specify them in the `--robot.port` and `--teleop.port` parameters when recording data, replaying episodes, or running teleoperation scripts.
+该命令将显示可用的 USB 端口及其关联的设备。请记下端口路径（例如 `/dev/tty.usbmodem58760433331`、`/dev/tty.usbmodem11301`），因为在记录数据、回放片段或运行遥操作脚本时，你需要在 `--robot.port` 和 `--teleop.port` 参数中指定它们。
 
-## Step 1: Calibration
+## 第 1 步：校准
 
-Before performing teleoperation, HopeJR's limbs need to be calibrated. Calibration files will be saved in `~/.cache/huggingface/lerobot/calibration`
+在执行遥操作之前，需要对 HopeJR 的肢体进行校准。校准文件将保存在 `~/.cache/huggingface/lerobot/calibration` 目录下。
 
-### 1.1 Calibrate Robot Hand
+### 1.1 校准机器人灵巧手
 
 ```bash
 lerobot-calibrate \
@@ -38,47 +38,47 @@ lerobot-calibrate \
     --robot.side=right
 ```
 
-When running the calibration script, a calibration GUI will pop up. Finger joints are named as follows:
+运行校准脚本时，会弹出校准图形界面。手指关节的命名如下：
 
-**Thumb**:
+**拇指**：
 
-- **CMC**: base joint connecting thumb to hand
-- **MCP**: knuckle joint
-- **PIP**: first finger joint
-- **DIP** : fingertip joint
+- **CMC**：连接拇指与手掌的基关节
+- **MCP**：掌指关节
+- **PIP**：近端指间关节
+- **DIP**：远端指间关节（指尖关节）
 
-**Index, Middle, Ring, and Pinky fingers**:
+**食指、中指、无名指和小指**：
 
-- **Radial flexor**: Moves base of finger towards the thumb
-- **Ulnar flexor**: Moves base of finger towards the pinky
-- **PIP/DIP**: Flexes the distal and proximal phalanx of the finger
+- **桡侧屈肌（Radial flexor）**：将手指根部向拇指方向移动
+- **尺侧屈肌（Ulnar flexor）**：将手指根部向小指方向移动
+- **PIP/DIP**：弯曲手指的远节和近节指骨
 
-Each one of these will need to be calibrated individually via the GUI.
-Note that ulnar and radial flexors should have ranges of the same size (but with different offsets) in order to get symmetric movement.
+每个关节都需要通过图形界面单独校准。
+请注意，尺侧屈肌和桡侧屈肌的范圍应大小相同（但偏移量不同），以实现对称运动。
 
 <p align="center">
   <img
     src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/calibration_gui_1.png"
-    alt="Setting boundaries in the hand calibration GUI"
-    title="Setting boundaries in the hand calibration GUI"
+    alt="在灵巧手校准图形界面中设置范围边界"
+    title="在灵巧手校准图形界面中设置范围边界"
     width="100%"
   ></img>
 </p>
 
-Use the calibration interface to set the range boundaries for each joint as shown above.
+如上图所示，使用校准界面为每个关节设置范围边界。
 
 <p align="center">
   <img
     src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/calibration_gui_2.png"
-    alt="Saving calibration values"
-    title="Saving calibration values"
+    alt="保存校准值"
+    title="保存校准值"
     width="100%"
   ></img>
 </p>
 
-Once you have set the appropriate boundaries for all joints, click "Save" to save the calibration values to the motors.
+为所有关节设置合适的边界后，点击"保存"将校准值保存到电机中。
 
-### 1.2 Calibrate Teleoperator Glove
+### 1.2 校准遥操作数据手套
 
 ```bash
 lerobot-calibrate \
@@ -88,36 +88,36 @@ lerobot-calibrate \
     --teleop.side=right
 ```
 
-Move each finger through its full range of motion, starting from the thumb.
+从拇指开始，将每个手指在其完整活动范围内移动。
 
 ```
-Move thumb through its entire range of motion.
-Recording positions. Press ENTER to stop...
+将拇指在其完整活动范围内移动。
+正在记录位置。按 ENTER 停止...
 
 -------------------------------------------
-NAME      |    MIN |    POS |    MAX
-thumb_cmc |   1790 |   1831 |   1853
-thumb_mcp |   1497 |   1514 |   1528
-thumb_pip |   1466 |   1496 |   1515
-thumb_dip |   1463 |   1484 |   1514
+名称      |   最小值 |   当前位置 |   最大值
+thumb_cmc |   1790    |   1831    |   1853
+thumb_mcp |   1497    |   1514    |   1528
+thumb_pip |   1466    |   1496    |   1515
+thumb_dip |   1463    |   1484    |   1514
 ```
 
-Continue with each finger:
+继续校准每个手指：
 
 ```
-Move middle through its entire range of motion.
-Recording positions. Press ENTER to stop...
+将中指在其完整活动范围内移动。
+正在记录位置。按 ENTER 停止...
 
 -------------------------------------------
-NAME                 |    MIN |    POS |    MAX
-middle_mcp_abduction |   1598 |   1718 |   1820
-middle_mcp_flexion   |   1512 |   1658 |   2136
-middle_dip           |   1484 |   1500 |   1547
+名称                 |   最小值 |   当前位置 |   最大值
+middle_mcp_abduction |   1598    |   1718    |   1820
+middle_mcp_flexion   |   1512    |   1658    |   2136
+middle_dip           |   1484    |   1500    |   1547
 ```
 
-Once calibration is complete, the system will save the calibration to `/Users/your_username/.cache/huggingface/lerobot/calibration/teleoperators/homunculus_glove/red.json`
+校准完成后，系统会将校准文件保存到 `/Users/your_username/.cache/huggingface/lerobot/calibration/teleoperators/homunculus_glove/red.json`。
 
-### 1.3 Calibrate Robot Arm
+### 1.3 校准机器人机械臂
 
 ```bash
 lerobot-calibrate \
@@ -126,24 +126,24 @@ lerobot-calibrate \
     --robot.id=white
 ```
 
-This will open a calibration GUI where you can set the range limits for each motor. The arm motions are organized as follows:
+这将打开一个校准图形界面，你可以在其中设置每个电机的范围限制。机械臂的运动组织如下：
 
-- **Shoulder**: pitch, yaw, and roll
-- **Elbow**: flex
-- **Wrist**: pitch, yaw, and roll
+- **肩部**：俯仰（pitch）、偏航（yaw）和翻滚（roll）
+- **肘部**：屈曲（flex）
+- **腕部**：俯仰（pitch）、偏航（yaw）和翻滚（roll）
 
 <p align="center">
   <img
     src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/calibration_gui_2.png"
-    alt="Setting boundaries in the arm calibration GUI"
-    title="Setting boundaries in the arm calibration GUI"
+    alt="在机械臂校准图形界面中设置范围边界"
+    title="在机械臂校准图形界面中设置范围边界"
     width="100%"
   ></img>
 </p>
 
-Use the calibration interface to set the range boundaries for each joint. Move each joint through its full range of motion and adjust the minimum and maximum values accordingly. Once you have set the appropriate boundaries for all joints, save the calibration.
+使用校准界面为每个关节设置范围边界。将每个关节在其完整活动范围内移动，并相应调整最小值和最大值。为所有关节设置合适的边界后，保存校准。
 
-### 1.4 Calibrate Teleoperator Exoskeleton
+### 1.4 校准遥操作外骨骼
 
 ```bash
 lerobot-calibrate \
@@ -152,30 +152,30 @@ lerobot-calibrate \
     --teleop.id=black
 ```
 
-The exoskeleton allows one to control the robot arm. During calibration, you'll be prompted to move all joints through their full range of motion:
+外骨骼用于控制机器人机械臂。在校准过程中，系统会提示你将所有关节在其完整活动范围内移动：
 
 ```
-Move all joints through their entire range of motion.
-Recording positions. Press ENTER to stop...
+将所有关节在其完整活动范围内移动。
+正在记录位置。按 ENTER 停止...
 
 -------------------------------------------
 -------------------------------------------
-NAME            |    MIN |    POS |    MAX
-shoulder_pitch  |    586 |    736 |    895
-shoulder_yaw    |   1257 |   1374 |   1390
-shoulder_roll   |    449 |   1034 |   2564
-elbow_flex      |   3023 |   3117 |   3134
-wrist_roll      |   3073 |   3096 |   3147
-wrist_yaw       |   2143 |   2171 |   2185
-wrist_pitch     |   1975 |   1993 |   2074
-Calibration saved to /Users/your_username/.cache/huggingface/lerobot/calibration/teleoperators/homunculus_arm/black.json
+名称            |   最小值 |   当前位置 |   最大值
+shoulder_pitch  |    586   |    736     |    895
+shoulder_yaw    |   1257   |   1374     |   1390
+shoulder_roll   |    449   |   1034     |   2564
+elbow_flex      |   3023   |   3117     |   3134
+wrist_roll      |   3073   |   3096     |   3147
+wrist_yaw       |   2143   |   2171     |   2185
+wrist_pitch     |   1975   |   1993     |   2074
+校准已保存到 /Users/your_username/.cache/huggingface/lerobot/calibration/teleoperators/homunculus_arm/black.json
 ```
 
-## Step 2: Teleoperation
+## 第 2 步：遥操作
 
-Due to global variable conflicts in the Feetech middleware, teleoperation for arm and hand must run in separate shell sessions:
+由于 Feetech 中间件中的全局变量冲突，机械臂和灵巧手的遥操作需要在不同的 shell 会话中运行：
 
-### Hand
+### 灵巧手
 
 ```bash
 lerobot-teleoperate \
@@ -191,7 +191,7 @@ lerobot-teleoperate \
     --fps=30
 ```
 
-### Arm
+### 机械臂
 
 ```bash
 lerobot-teleoperate \
@@ -205,13 +205,13 @@ lerobot-teleoperate \
     --fps=30
 ```
 
-## Step 3: Record, Replay, Train
+## 第 3 步：记录、回放、训练
 
-Record, Replay and Train with Hope-JR is still experimental.
+Hope-JR 的记录、回放和训练功能仍处于实验阶段。
 
-### Record
+### 记录
 
-This step records the dataset, which can be seen as an example [here](https://huggingface.co/datasets/nepyope/hand_record_test_with_video_data/settings).
+此步骤记录数据集，可参考[此示例](https://huggingface.co/datasets/nepyope/hand_record_test_with_video_data/settings)。
 
 ```bash
 lerobot-record \
@@ -225,7 +225,7 @@ lerobot-record \
     --teleop.id=right \
     --teleop.side=right \
     --dataset.repo_id=<USER>/hand_record_test_with_video_data \
-    --dataset.single_task="Hand recording test with video data" \
+    --dataset.single_task="手部记录测试（含视频数据）" \
     --dataset.num_episodes=1 \
     --dataset.episode_time_s=5 \
     --dataset.push_to_hub=true \
@@ -236,7 +236,7 @@ lerobot-record \
     --display_data=true
 ```
 
-### Replay
+### 回放
 
 ```bash
 lerobot-replay \
@@ -248,7 +248,7 @@ lerobot-replay \
     --dataset.episode=0
 ```
 
-### Train
+### 训练
 
 ```bash
 lerobot-train \
@@ -261,9 +261,9 @@ lerobot-train \
   --policy.repo_id=<USER>/hand_test_policy
 ```
 
-### Evaluate
+### 评估
 
-This training run can be viewed as an example [here](https://wandb.ai/tino/lerobot/runs/rp0k8zvw?nw=nwusertino).
+此训练运行可参考[此示例](https://wandb.ai/tino/lerobot/runs/rp0k8zvw?nw=nwusertino)。
 
 ```bash
 lerobot-record \
@@ -274,7 +274,7 @@ lerobot-record \
   --robot.cameras='{"main": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30}}' \
   --display_data=false \
   --dataset.repo_id=<USER>/eval_hopejr \
-  --dataset.single_task="Evaluate hopejr hand policy" \
+  --dataset.single_task="评估 hopejr 灵巧手策略" \
   --dataset.num_episodes=10 \
   --dataset.streaming_encoding=true \
   --dataset.encoder_threads=2 \

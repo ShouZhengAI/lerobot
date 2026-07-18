@@ -1,43 +1,43 @@
 # VLABench
 
-[VLABench](https://github.com/OpenMOSS/VLABench) is a large-scale benchmark for **language-conditioned robotic manipulation with long-horizon reasoning**. The upstream suite covers 100 task categories across 2,000+ objects and evaluates six dimensions of robot intelligence: mesh & texture understanding, spatial reasoning, world-knowledge transfer, semantic instruction comprehension, physical-law understanding, and long-horizon planning. Built on MuJoCo / dm_control with a Franka Panda 7-DOF arm. LeRobot exposes **43 of these tasks** through `--env.task` (21 primitives + 22 composites, see [Available tasks](#available-tasks) below).
+[VLABench](https://github.com/OpenMOSS/VLABench) 是一个大规模基准测试平台，用于**基于语言条件的机器人操控与长时程推理**。该上游套件涵盖 100 个任务类别，涉及 2000 多个物体，评估机器人智能的六个维度：网格与纹理理解、空间推理、世界知识迁移、语义指令理解、物理定律理解和长时程规划。基于 MuJoCo / dm_control 构建，使用 Franka Panda 7 自由度机械臂。LeRobot 通过 `--env.task` 提供了其中的 **43 个任务**（21 个基础任务 + 22 个复合任务，见下方的[可用任务](#可用任务)）。
 
-- Paper: [VLABench: A Large-Scale Benchmark for Language-Conditioned Robotics Manipulation with Long-Horizon Reasoning](https://arxiv.org/abs/2412.18194)
-- GitHub: [OpenMOSS/VLABench](https://github.com/OpenMOSS/VLABench)
-- Project website: [vlabench.github.io](https://vlabench.github.io)
-- Pretrained policy: [`lerobot/smolvla_vlabench`](https://huggingface.co/lerobot/smolvla_vlabench)
+- 论文：[VLABench: A Large-Scale Benchmark for Language-Conditioned Robotics Manipulation with Long-Horizon Reasoning](https://arxiv.org/abs/2412.18194)
+- GitHub：[OpenMOSS/VLABench](https://github.com/OpenMOSS/VLABench)
+- 项目网站：[vlabench.github.io](https://vlabench.github.io)
+- 预训练策略：[`lerobot/smolvla_vlabench`](https://huggingface.co/lerobot/smolvla_vlabench)
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/vlabench.png"
-  alt="VLABench benchmark overview"
+  alt="VLABench 基准测试概览"
   width="85%"
 />
 
-## Available tasks
+## 可用任务
 
-VLABench ships two task suites covering **43 task categories** in LeRobot's `--env.task` surface:
+VLABench 提供了两个任务套件，涵盖 LeRobot `--env.task` 接口中的 **43 个任务类别**：
 
-| Suite     | CLI name    | Tasks | Description                                                      |
-| --------- | ----------- | ----- | ---------------------------------------------------------------- |
-| Primitive | `primitive` | 21    | Single / few-skill combinations (select, insert, physics QA)     |
-| Composite | `composite` | 22    | Multi-step reasoning and long-horizon planning (cook, rearrange) |
+| 套件     | CLI 名称      | 任务数 | 描述                                                 |
+| -------- | ------------ | ------ | ---------------------------------------------------- |
+| 基础任务 | `primitive`  | 21     | 单一/少量技能组合（选择、插入、物理问答）             |
+| 复合任务 | `composite`  | 22     | 多步推理和长时程规划（烹饪、整理）                     |
 
-**Primitive tasks:** `select_fruit`, `select_toy`, `select_chemistry_tube`, `add_condiment`, `select_book`, `select_painting`, `select_drink`, `insert_flower`, `select_billiards`, `select_ingredient`, `select_mahjong`, `select_poker`, and physical-reasoning tasks (`density_qa`, `friction_qa`, `magnetism_qa`, `reflection_qa`, `simple_cuestick_usage`, `simple_seesaw_usage`, `sound_speed_qa`, `thermal_expansion_qa`, `weight_qa`).
+**基础任务：** `select_fruit`、`select_toy`、`select_chemistry_tube`、`add_condiment`、`select_book`、`select_painting`、`select_drink`、`insert_flower`、`select_billiards`、`select_ingredient`、`select_mahjong`、`select_poker`，以及物理推理任务（`density_qa`、`friction_qa`、`magnetism_qa`、`reflection_qa`、`simple_cuestick_usage`、`simple_seesaw_usage`、`sound_speed_qa`、`thermal_expansion_qa`、`weight_qa`）。
 
-**Composite tasks:** `cluster_billiards`, `cluster_book`, `cluster_drink`, `cluster_toy`, `cook_dishes`, `cool_drink`, `find_unseen_object`, `get_coffee`, `hammer_nail`, `heat_food`, `make_juice`, `play_mahjong`, `play_math_game`, `play_poker`, `play_snooker`, `rearrange_book`, `rearrange_chemistry_tube`, `set_dining_table`, `set_study_table`, `store_food`, `take_chemistry_experiment`, `use_seesaw_complex`.
+**复合任务：** `cluster_billiards`、`cluster_book`、`cluster_drink`、`cluster_toy`、`cook_dishes`、`cool_drink`、`find_unseen_object`、`get_coffee`、`hammer_nail`、`heat_food`、`make_juice`、`play_mahjong`、`play_math_game`、`play_poker`、`play_snooker`、`rearrange_book`、`rearrange_chemistry_tube`、`set_dining_table`、`set_study_table`、`store_food`、`take_chemistry_experiment`、`use_seesaw_complex`。
 
-`--env.task` accepts three forms:
+`--env.task` 接受三种形式：
 
-- a single task name (`select_fruit`)
-- a comma-separated list (`select_fruit,heat_food`)
-- a suite shortcut (`primitive`, `composite`, or `primitive,composite`)
+- 单个任务名称（`select_fruit`）
+- 逗号分隔列表（`select_fruit,heat_food`）
+- 套件快捷方式（`primitive`、`composite` 或 `primitive,composite`）
 
-## Installation
+## 安装
 
-VLABench is **not on PyPI** — its only distribution is the [OpenMOSS/VLABench](https://github.com/OpenMOSS/VLABench) GitHub repo — so LeRobot does not expose a `vlabench` extra. Install it manually as an editable clone, alongside the MuJoCo / dm_control pins VLABench needs, then fetch the mesh assets:
+VLABench **不在 PyPI 上**——其唯一的分发渠道是 [OpenMOSS/VLABench](https://github.com/OpenMOSS/VLABench) GitHub 仓库——因此 LeRobot 没有提供 `vlabench` 额外依赖。请手动以可编辑克隆方式安装，同时安装 VLABench 所需的 MuJoCo / dm_control 固定版本，然后获取网格资源：
 
 ```bash
-# After following the standard LeRobot installation instructions.
+# 在遵循标准 LeRobot 安装说明之后。
 
 git clone https://github.com/OpenMOSS/VLABench.git ~/VLABench
 git clone https://github.com/motion-planning/rrt-algorithms.git ~/rrt-algorithms
@@ -49,19 +49,19 @@ python ~/VLABench/scripts/download_assets.py
 ```
 
 <Tip>
-VLABench requires Linux (`sys_platform == 'linux'`) and Python 3.10+. Set the MuJoCo rendering backend before running:
+VLABench 需要 Linux（`sys_platform == 'linux'`）和 Python 3.10+。运行前请设置 MuJoCo 渲染后端：
 
 ```bash
-export MUJOCO_GL=egl  # for headless servers (HPC, cloud)
+export MUJOCO_GL=egl  # 用于无头服务器（HPC、云端）
 ```
 
 </Tip>
 
-## Evaluation
+## 评估
 
-All eval snippets below mirror the command CI runs (see `.github/workflows/benchmark_tests.yml`). The `--rename_map` argument maps VLABench's `image` / `second_image` / `wrist_image` camera keys onto the three-camera (`camera1` / `camera2` / `camera3`) input layout the released `smolvla_vlabench` policy was trained on.
+以下所有评估代码片段与 CI 运行的命令一致（参见 `.github/workflows/benchmark_tests.yml`）。`--rename_map` 参数将 VLABench 的 `image` / `second_image` / `wrist_image` 相机键映射到已发布的 `smolvla_vlabench` 策略训练时使用的三相机（`camera1` / `camera2` / `camera3`）输入布局。
 
-### Single-task evaluation (recommended for quick iteration)
+### 单任务评估（推荐用于快速迭代）
 
 ```bash
 lerobot-eval \
@@ -75,9 +75,9 @@ lerobot-eval \
   '--rename_map={"observation.images.image": "observation.images.camera1", "observation.images.second_image": "observation.images.camera2", "observation.images.wrist_image": "observation.images.camera3"}'
 ```
 
-### Multi-task evaluation
+### 多任务评估
 
-Pass a comma-separated list of tasks:
+传递逗号分隔的任务列表：
 
 ```bash
 lerobot-eval \
@@ -91,9 +91,9 @@ lerobot-eval \
   '--rename_map={"observation.images.image": "observation.images.camera1", "observation.images.second_image": "observation.images.camera2", "observation.images.wrist_image": "observation.images.camera3"}'
 ```
 
-### Suite-wide evaluation
+### 全套件评估
 
-Run an entire suite (all 21 primitives or all 22 composites):
+运行整个套件（所有 21 个基础任务或所有 22 个复合任务）：
 
 ```bash
 lerobot-eval \
@@ -108,7 +108,7 @@ lerobot-eval \
   '--rename_map={"observation.images.image": "observation.images.camera1", "observation.images.second_image": "observation.images.camera2", "observation.images.wrist_image": "observation.images.camera3"}'
 ```
 
-Or both suites:
+或者同时运行两个套件：
 
 ```bash
 lerobot-eval \
@@ -123,35 +123,35 @@ lerobot-eval \
   '--rename_map={"observation.images.image": "observation.images.camera1", "observation.images.second_image": "observation.images.camera2", "observation.images.wrist_image": "observation.images.camera3"}'
 ```
 
-### Recommended evaluation episodes
+### 推荐的评估片段数
 
-**10 episodes per task** for reproducible benchmarking (210 total for the full primitive suite, 220 for composite). Matches the protocol in the VLABench paper.
+**每个任务 10 个片段**，以实现可复现的基准测试（完整基础套件共 210 个，复合套件共 220 个）。与 VLABench 论文中的协议一致。
 
-## Policy inputs and outputs
+## 策略输入和输出
 
-**Observations:**
+**观测值：**
 
-- `observation.state` — 7-dim end-effector state (position xyz + Euler xyz + gripper)
-- `observation.images.image` — front camera, 480×480 HWC uint8
-- `observation.images.second_image` — second camera, 480×480 HWC uint8
-- `observation.images.wrist_image` — wrist camera, 480×480 HWC uint8
+- `observation.state` — 7 维末端执行器状态（位置 xyz + 欧拉角 xyz + 夹爪）
+- `observation.images.image` — 前部相机，480×480 HWC uint8
+- `observation.images.second_image` — 第二相机，480×480 HWC uint8
+- `observation.images.wrist_image` — 腕部相机，480×480 HWC uint8
 
-**Actions:**
+**动作：**
 
-- Continuous control in `Box(-1, 1, shape=(7,))` — 3D position + 3D Euler orientation + 1D gripper.
+- 连续控制，空间为 `Box(-1, 1, shape=(7,))` — 3 维位置 + 3 维欧拉角朝向 + 1 维夹爪。
 
-## Training
+## 训练
 
-### Datasets
+### 数据集
 
-Pre-collected VLABench datasets in LeRobot format on the Hub:
+Hub 上已收集好的 VLABench 数据集，格式为 LeRobot 格式：
 
-- [`VLABench/vlabench_primitive_ft_lerobot_video`](https://huggingface.co/datasets/VLABench/vlabench_primitive_ft_lerobot_video) — 5,000 episodes, 128 tasks, 480×480 images.
-- [`VLABench/vlabench_composite_ft_lerobot_video`](https://huggingface.co/datasets/VLABench/vlabench_composite_ft_lerobot_video) — 5,977 episodes, 167 tasks, 224×224 images.
+- [`VLABench/vlabench_primitive_ft_lerobot_video`](https://huggingface.co/datasets/VLABench/vlabench_primitive_ft_lerobot_video) — 5,000 个片段，128 个任务，480×480 图像。
+- [`VLABench/vlabench_composite_ft_lerobot_video`](https://huggingface.co/datasets/VLABench/vlabench_composite_ft_lerobot_video) — 5,977 个片段，167 个任务，224×224 图像。
 
-### Example training command
+### 示例训练命令
 
-Fine-tune a SmolVLA base on the primitive suite:
+在基础套件上微调 SmolVLA 基础模型：
 
 ```bash
 lerobot-train \
@@ -171,6 +171,6 @@ lerobot-train \
   --save_freq=10000
 ```
 
-## Reproducing published results
+## 复现已发布的结果
 
-The released checkpoint [`lerobot/smolvla_vlabench`](https://huggingface.co/lerobot/smolvla_vlabench) was trained on the primitive-suite dataset above and is evaluated with the [Single-task](#single-task-evaluation-recommended-for-quick-iteration) / [Suite-wide](#suite-wide-evaluation) commands. CI runs a 10-primitive-task smoke eval (one episode each) on every PR touching the benchmark.
+已发布的检查点 [`lerobot/smolvla_vlabench`](https://huggingface.co/lerobot/smolvla_vlabench) 在上述基础套件数据集上训练，并使用[单任务评估](#单任务评估推荐用于快速迭代) / [全套件评估](#全套件评估)命令进行评估。CI 在每次涉及该基准测试的 PR 上运行包含 10 个基础任务的冒烟测试评估（每个任务一个片段）。

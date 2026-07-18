@@ -1,8 +1,8 @@
-## Paper
+## 论文
 
 https://tonyzhaozh.github.io/aloha
 
-## Citation
+## 引用
 
 ```bibtex
 @article{zhao2023learning,

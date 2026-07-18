@@ -1,8 +1,8 @@
-## Paper
+## 论文（Paper）
 
 https://arxiv.org/abs/2506.01844
 
-## Citation
+## 引用（Citation）
 
 ```bibtex
 @article{shukor2025smolvla,

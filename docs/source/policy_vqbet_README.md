@@ -1,8 +1,8 @@
-## Paper
+## 论文
 
 https://sjlee.cc/vq-bet/
 
-## Citation
+## 引用
 
 ```bibtex
 @article{lee2024behavior,

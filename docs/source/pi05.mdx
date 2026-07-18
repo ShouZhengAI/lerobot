@@ -1,54 +1,54 @@
-# π₀.₅ (Pi05) Policy
+# π₀.₅ (Pi05) 策略
 
-π₀.₅ is a **Vision-Language-Action model with open-world generalization**, from Physical Intelligence. The LeRobot implementation is adapted from their open source [OpenPI](https://github.com/Physical-Intelligence/openpi) repository.
+π₀.₅ 是一个来自 Physical Intelligence 的**具备开放世界泛化能力的视觉-语言-动作（Vision-Language-Action）模型**。LeRobot 的实现改编自其开源仓库 [OpenPI](https://github.com/Physical-Intelligence/openpi)。
 
-## Model Overview
+## 模型概述
 
-π₀.₅ represents a significant evolution from π₀, developed by [Physical Intelligence](https://www.physicalintelligence.company/blog/pi05) to address a big challenge in robotics: **open-world generalization**. While robots can perform impressive tasks in controlled environments, π₀.₅ is designed to generalize to entirely new environments and situations that were never seen during training.
+π₀.₅ 代表了从 π₀ 的重要演进，由 [Physical Intelligence](https://www.physicalintelligence.company/blog/pi05) 开发，旨在解决机器人领域的一大挑战：**开放世界泛化（open-world generalization）**。虽然机器人可以在受控环境中完成令人印象深刻的复杂任务，但 π₀.₅ 被设计为能够泛化到训练期间从未见过的全新环境和情境。
 
-### The Generalization Challenge
+### 泛化挑战
 
-As Physical Intelligence explains, the fundamental challenge isn't performing tasks of agility or dexterity, but generalization, the ability to correctly perform tasks in new settings with new objects. Consider a robot cleaning different homes: each home has different objects in different places. Generalization must occur at multiple levels:
+正如 Physical Intelligence 所解释的，根本挑战不在于敏捷性或灵巧性的任务执行能力，而在于**泛化**——即在新环境中使用新物体正确完成任务的能力。设想一个机器人在不同家庭中打扫卫生：每个家庭的物品和位置都不同。泛化必须在多个层面上进行：
 
-- **Physical Level**: Understanding how to pick up a spoon (by the handle) or plate (by the edge), even with unseen objects in cluttered environments
-- **Semantic Level**: Understanding task semantics, where to put clothes and shoes (laundry hamper, not on the bed), and what tools are appropriate for cleaning spills
-- **Environmental Level**: Adapting to "messy" real-world environments like homes, grocery stores, offices, and hospitals
+- **物理层面**：理解如何拿起勺子（握柄）或盘子（边缘），即使是在杂乱环境中的未见物体
+- **语义层面**：理解任务语义，知道衣服和鞋子该放哪里（洗衣篮，而不是床上），以及清洁溅洒物应使用什么工具
+- **环境层面**：适应如家庭、杂货店、办公室和医院等"杂乱"的真实世界环境
 
-### Co-Training on Heterogeneous Data
+### 异构数据协同训练
 
-The breakthrough innovation in π₀.₅ is **co-training on heterogeneous data sources**. The model learns from:
+π₀.₅ 的突破性创新在于**异构数据源的协同训练（co-training on heterogeneous data）**。该模型从以下数据中学习：
 
-1. **Multimodal Web Data**: Image captioning, visual question answering, object detection
-2. **Verbal Instructions**: Humans coaching robots through complex tasks step-by-step
-3. **Subtask Commands**: High-level semantic behavior labels (e.g., "pick up the pillow" for an unmade bed)
-4. **Cross-Embodiment Robot Data**: Data from various robot platforms with different capabilities
-5. **Multi-Environment Data**: Static robots deployed across many different homes
-6. **Mobile Manipulation Data**: ~400 hours of mobile robot demonstrations
+1. **多模态网络数据**：图像描述、视觉问答、目标检测
+2. **语言指令**：人类逐步指导机器人完成复杂任务
+3. **子任务指令**：高级语义行为标签（例如，整理床铺时的"拿起枕头"）
+4. **跨形态机器人数据**：来自不同机器人平台、具有不同能力的数据
+5. **多环境数据**：部署在多个不同家庭中的静态机器人数据
+6. **移动操作数据**：约 400 小时的移动机器人示教数据
 
-This diverse training mixture creates a "curriculum" that enables generalization across physical, visual, and semantic levels simultaneously.
+这种多样化的训练混合创建了一个"课程"，使其能够同时在物理、视觉和语义层面实现泛化。
 
-## Installation Requirements
+## 安装要求
 
-1. Install LeRobot by following our [Installation Guide](./installation).
-2. Install Pi0.5 dependencies by running:
+1. 按照[安装指南](./installation)安装 LeRobot。
+2. 安装 Pi0.5 依赖项，运行：
 
    ```bash
    pip install -e ".[pi]"
    ```
 
-## Usage
+## 使用方法
 
-To use π₀.₅ in your LeRobot configuration, specify the policy type as:
+要在 LeRobot 配置中使用 π₀.₅，将策略类型指定为：
 
 ```python
 policy.type=pi05
 ```
 
-## Training
+## 训练
 
-### Training Command Example
+### 训练命令示例
 
-Here's a complete training command for finetuning the base π₀.₅ model on your own dataset:
+以下是在自有数据集上微调基础 π₀.₅ 模型的完整训练命令：
 
 ```bash
 lerobot-train \
@@ -69,39 +69,39 @@ lerobot-train \
     --batch_size=32
 ```
 
-### Key Training Parameters
+### 关键训练参数
 
-- **`--policy.compile_model=true`**: Enables model compilation for faster training
-- **`--policy.gradient_checkpointing=true`**: Reduces memory usage significantly during training
-- **`--policy.dtype=bfloat16`**: Use mixed precision training for efficiency
-- **`--batch_size=32`**: Batch size for training, adapt this based on your GPU memory
-- **`--policy.pretrained_path=lerobot/pi05_base`**: The base π₀.₅ model you want to finetune, options are:
+- **`--policy.compile_model=true`**：启用模型编译以加快训练速度
+- **`--policy.gradient_checkpointing=true`**：在训练中显著减少显存使用
+- **`--policy.dtype=bfloat16`**：使用混合精度训练以提高效率
+- **`--batch_size=32`**：训练的批量大小，根据你的 GPU 显存调整
+- **`--policy.pretrained_path=lerobot/pi05_base`**：要进行微调的 π₀.₅ 基础模型，可选参数：
   - [lerobot/pi05_base](https://huggingface.co/lerobot/pi05_base)
-  - [lerobot/pi05_libero](https://huggingface.co/lerobot/pi05_libero) (specifically trained on the Libero dataset)
+  - [lerobot/pi05_libero](https://huggingface.co/lerobot/pi05_libero)（针对 Libero 数据集专门训练）
 
-### Training Parameters Explained
+### 训练参数说明
 
-| Parameter               | Default | Description                                 |
-| ----------------------- | ------- | ------------------------------------------- |
-| `freeze_vision_encoder` | `false` | Do not freeze the vision encoder            |
-| `train_expert_only`     | `false` | Do not freeze the VLM, train all parameters |
+| 参数                    | 默认值    | 说明                             |
+| ----------------------- | ------- | -------------------------------- |
+| `freeze_vision_encoder` | `false` | 不冻结视觉编码器（vision encoder） |
+| `train_expert_only`     | `false` | 不冻结 VLM，训练所有参数           |
 
-**💡 Tip**: Setting `train_expert_only=true` freezes the VLM and trains only the action expert and projections, allowing finetuning with reduced memory usage.
+**💡 提示**：设置 `train_expert_only=true` 会冻结 VLM，仅训练动作专家（action expert）和投影层，从而以更低的显存消耗进行微调。
 
-If your dataset is not converted with `quantiles`, you can convert it with the following command:
+如果数据集未使用 `quantiles` 转换，可以使用以下命令进行转换：
 
 ```bash
 python src/lerobot/scripts/augment_dataset_quantile_stats.py \
     --repo-id=your_dataset \
 ```
 
-Or train pi05 with this normalization mapping: `--policy.normalization_mapping='{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'`
+或者使用以下归一化映射来训练 pi05：`--policy.normalization_mapping='{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'`
 
-## Relative Actions
+## 相对动作
 
-By default, π₀.₅ predicts absolute actions. You can enable **relative actions** so the model predicts offsets relative to the current robot state. This can improve training stability for certain setups.
+默认情况下，π₀.₅ 预测绝对动作。你可以启用**相对动作**，使模型预测相对于当前机器人状态的偏移量。这可以提高某些配置下的训练稳定性。
 
-To use relative actions, first recompute your dataset stats in relative space via the CLI:
+要使用相对动作，首先通过 CLI 在相对空间下重新计算数据集统计信息：
 
 ```bash
 lerobot-edit-dataset \
@@ -113,7 +113,7 @@ lerobot-edit-dataset \
     --push_to_hub true
 ```
 
-Or equivalently in Python:
+或者在 Python 中等价实现：
 
 ```python
 from lerobot.datasets import LeRobotDataset, recompute_stats
@@ -123,9 +123,9 @@ recompute_stats(dataset, relative_action=True, chunk_size=50, relative_exclude_j
 dataset.push_to_hub()
 ```
 
-The `chunk_size` should match your policy's `chunk_size` (default 50 for π₀.₅). `relative_exclude_joints` lists joint names that should remain in absolute space (e.g. gripper commands). Use `--push_to_hub true` to upload the updated stats to the Hub.
+`chunk_size` 应与你的策略的 `chunk_size` 一致（π₀.₅ 默认为 50）。`relative_exclude_joints` 列出应保持为绝对空间的关节名称（例如夹爪指令）。使用 `--push_to_hub true` 将更新后的统计信息上传到 Hub。
 
-Then train with relative actions enabled:
+然后启用相对动作进行训练：
 
 ```bash
 lerobot-train \
@@ -136,22 +136,22 @@ lerobot-train \
     ...
 ```
 
-## Performance Results
+## 性能结果
 
-### Libero Benchmark Results
+### Libero 基准测试结果
 
-π₀.₅ has demonstrated strong performance on the Libero benchmark suite. To compare and test its LeRobot implementation, we finetuned the libero base model for an additional 6k steps on the Libero dataset and compared the results to the OpenPI reference results.
+π₀.₅ 在 Libero 基准测试套件上展示了强大的性能。为了比较并测试其 LeRobot 实现，我们在 Libero 数据集上对 libero 基础模型额外进行了 6000 步微调，并将结果与 OpenPI 参考结果进行了比较。
 
-| Benchmark          | LeRobot Implementation | OpenPI Reference |
-| ------------------ | ---------------------- | ---------------- |
-| **Libero Spatial** | 97.0%                  | 98.8%            |
-| **Libero Object**  | 99.0%                  | 98.2%            |
-| **Libero Goal**    | 98.0%                  | 98.0%            |
-| **Libero 10**      | 96.0%                  | 92.4%            |
-| **Average**        | 97.5%                  | 96.85%           |
+| 基准测试              | LeRobot 实现 | OpenPI 参考 |
+| -------------------- | ------------ | ----------- |
+| **Libero Spatial**   | 97.0%        | 98.8%       |
+| **Libero Object**    | 99.0%        | 98.2%       |
+| **Libero Goal**      | 98.0%        | 98.0%       |
+| **Libero 10**        | 96.0%        | 92.4%       |
+| **平均**             | 97.5%        | 96.85%      |
 
-These results demonstrate π₀.₅'s strong generalization capabilities across diverse robotic manipulation tasks. To reproduce these results, you can follow the instructions in the [Libero](https://huggingface.co/docs/lerobot/libero) section.
+这些结果展示了 π₀.₅ 在多样化机器人操作任务中的强大泛化能力。要复现这些结果，可以按照 [Libero](https://huggingface.co/docs/lerobot/libero) 部分的说明操作。
 
-## License
+## 许可证
 
-This model follows the **Apache 2.0 License**, consistent with the original [OpenPI repository](https://github.com/Physical-Intelligence/openpi).
+该模型遵循 **Apache 2.0 许可证**，与原始 [OpenPI 仓库](https://github.com/Physical-Intelligence/openpi) 一致。

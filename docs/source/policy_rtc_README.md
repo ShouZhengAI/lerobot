@@ -1,14 +1,14 @@
-# Real-Time Chunking (RTC)
+# 实时分块（Real-Time Chunking，RTC）
 
-This module contains the LeRobot implementation of **Real-Time Chunking (RTC)**, an inference-time technique for flow-matching based policies.
+该模块包含 **实时分块（RTC）** 的 LeRobot 实现，这是一种用于基于流匹配（flow-matching）策略的推理时增强技术。
 
-**Note**: RTC is not a policy itself, but rather an inference enhancement that works with flow-matching based policies including [π₀](../pi0/), [π₀.₅](../pi05/), and [SmolVLA](../smolvla/).
+**注意**：RTC 本身并非一种策略，而是与基于流匹配的策略（包括 [π₀](../pi0/)、[π₀.₅](../pi05/) 和 [SmolVLA](../smolvla/)）配合使用的推理增强方法。
 
 ---
 
-## Citation
+## 引用（Citation）
 
-If you use Real-Time Chunking in your work, please cite:
+如果您在工作中使用了实时分块，请引用：
 
 ```bibtex
 @misc{openpi2024,
@@ -33,6 +33,6 @@ If you use Real-Time Chunking in your work, please cite:
 
 ---
 
-## License
+## 许可证（License）
 
-This implementation follows the **Apache 2.0 License**, consistent with the LeRobot project.
+本实现遵循 **Apache 2.0 License**，与 LeRobot 项目一致。

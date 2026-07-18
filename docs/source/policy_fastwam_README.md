@@ -1,14 +1,14 @@
-## Research Paper
+## 研究论文
 
-Paper: https://arxiv.org/abs/2603.16666
+论文：https://arxiv.org/abs/2603.16666
 
-## Repository
+## 代码仓库
 
-Code: https://github.com/yuantianyuan01/FastWAM
+代码：https://github.com/yuantianyuan01/FastWAM
 
-Project page: https://yuantianyuan01.github.io/FastWAM/
+项目页面：https://yuantianyuan01.github.io/FastWAM/
 
-## Citation
+## 引用
 
 ```bibtex
 @article{yuan2026fastwam,
@@ -20,27 +20,27 @@ Project page: https://yuantianyuan01.github.io/FastWAM/
 }
 ```
 
-## Additional Resources
+## 其他资源
 
-Base video model: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
+基础视频模型：https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B
 
-Released upstream checkpoints: https://huggingface.co/yuanty/fastwam
+已发布的官方检查点：https://huggingface.co/yuanty/fastwam
 
-## Results
+## 结果
 
-Evaluated on LIBERO with [`ZibinDong/fastwam_libero_uncond_2cam224`](https://huggingface.co/ZibinDong/fastwam_libero_uncond_2cam224):
+在 LIBERO 上使用 [`ZibinDong/fastwam_libero_uncond_2cam224`](https://huggingface.co/ZibinDong/fastwam_libero_uncond_2cam224) 进行评估：
 
-| Suite          | Success rate | n_episodes |
-| -------------- | -----------: | ---------: |
-| libero_spatial |        97.6% |        500 |
-| libero_object  |        99.0% |        500 |
-| libero_goal    |        95.0% |        500 |
-| libero_10      |        94.0% |        500 |
-| **average**    |    **96.4%** |       2000 |
+| 评测套件       | 成功率 | 轮次数量 |
+| -------------- | -----: | -------: |
+| libero_spatial | 97.6%  |      500 |
+| libero_object  | 99.0%  |      500 |
+| libero_goal    | 95.0%  |      500 |
+| libero_10      | 94.0%  |      500 |
+| **平均值**     | **96.4%** |   2000 |
 
-Reproduce: `lerobot-eval --policy.path=ZibinDong/fastwam_libero_uncond_2cam224 --policy.device=cuda --policy.torch_dtype=float32 --policy.n_action_steps=10 --env.type=libero --env.task=libero_spatial --env.observation_height=256 --env.observation_width=256 --eval.batch_size=1 --eval.n_episodes=50 --seed=0 --env.episode_length=300`.
+复现命令：`lerobot-eval --policy.path=ZibinDong/fastwam_libero_uncond_2cam224 --policy.device=cuda --policy.torch_dtype=float32 --policy.n_action_steps=10 --env.type=libero --env.task=libero_spatial --env.observation_height=256 --env.observation_width=256 --eval.batch_size=1 --eval.n_episodes=50 --seed=0 --env.episode_length=300`。
 
-For LIBERO-10, use `--env.task=libero_10 --env.episode_length=600`:
+对于 LIBERO-10，使用 `--env.task=libero_10 --env.episode_length=600`：
 
 ```bash
 lerobot-eval \

@@ -1,33 +1,33 @@
 # WALL-OSS
 
-This repository contains the Hugging Face port of [**WALL-OSS**](https://x2robot.com/en/research/68bc2cde8497d7f238dde690), a Vision-Language-Action model for cross-embodiment robotic control based on Qwen2.5-VL with flow matching/FAST action prediction.
+本仓库包含 Hugging Face 对 [**WALL-OSS**](https://x2robot.com/en/research/68bc2cde8497d7f238dde690) 的移植实现，这是一个基于 Qwen2.5-VL 的视觉-语言-动作模型（Vision-Language-Action Model），采用流匹配/FAST 动作预测，用于跨实体（cross-embodiment）机器人控制。
 
 ---
 
-## Model Overview
+## 模型概览
 
-| Feature            | Description                                           |
-| ------------------ | ----------------------------------------------------- |
-| Base Model         | Qwen2.5-VL (Vision-Language Model)                    |
-| Action Prediction  | Flow Matching (diffusion) or FAST (discrete tokens)   |
-| Architecture       | Mixture of Experts (MoE) with action-specific routing |
-| Multi-Modal Inputs | Vision (images/videos), Language, Proprioception      |
-
----
-
-## Additional Resources
-
-Paper: https://arxiv.org/pdf/2509.11766
-
-Official Repository: https://github.com/X-Square-Robot/wall-x
-
-Hugging Face: https://huggingface.co/x-square-robot
+| 特性                 | 说明                                               |
+| -------------------- | -------------------------------------------------- |
+| 基础模型             | Qwen2.5-VL（视觉-语言模型）                        |
+| 动作预测             | 流匹配（Flow Matching，扩散）或 FAST（离散令牌）   |
+| 架构                 | 混合专家（Mixture of Experts, MoE），带动作专用路由 |
+| 多模态输入           | 视觉（图像/视频）、语言、本体感知（Proprioception） |
 
 ---
 
-## Citation
+## 其他资源
 
-If you use this work, please cite:
+论文：https://arxiv.org/pdf/2509.11766
+
+官方代码库：https://github.com/X-Square-Robot/wall-x
+
+Hugging Face：https://huggingface.co/x-square-robot
+
+---
+
+## 引用
+
+如果您使用了本工作，请引用：
 
 ```bibtex
 @article{zhai2025igniting,
@@ -40,6 +40,6 @@ If you use this work, please cite:
 
 ---
 
-## License
+## 许可证
 
-This model follows the **Apache 2.0 License**, consistent with the original [WallX repository](https://github.com/X-Square-Robot/wall-x).
+本模型遵循 **Apache 2.0 许可证**，与原始 [WallX 仓库](https://github.com/X-Square-Robot/wall-x) 保持一致。

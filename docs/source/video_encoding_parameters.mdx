@@ -1,22 +1,21 @@
-# Video encoding parameters
+# 视频编码参数
 
-When video storage is enabled, LeRobot stores each camera stream as an **MP4** file instead of saving one image file per timestep. Video encoding compresses across time, which usually cuts dataset size and I/O compared to a pile of PNG, while keeping MP4 — a format every player and loader understands.
+当启用视频存储时，LeRobot 将每个相机流存储为 **MP4** 文件，而不是每个时间步保存一张图像文件。视频编码跨时间维度进行压缩，通常可以显著减少数据集大小和 I/O 开销，同时保持 MP4——这种格式每个播放器和加载器都支持。
 
-Encoding frames into an MP4 is a full FFmpeg pipeline: choice of encoder, pixel format, GOP/keyframes, quality vs. speed, and optional extra encoder flags. Most of these knobs are user-tunable through `rgb_encoder`, a nested `RGBEncoderConfig` (`lerobot.configs.video.RGBEncoderConfig`) passed through PyAV.
+将帧编码为 MP4 是一个完整的 FFmpeg 流水线：编码器选择、像素格式、GOP（图像组）/关键帧、质量与速度的权衡，以及可选的额外编码器标志。这些参数大部分都可以通过 `rgb_encoder`（一个嵌套的 `RGBEncoderConfig`（`lerobot.configs.video.RGBEncoderConfig`））进行用户调节，通过 PyAV 传递。
 
-You can set these parameters from the CLI with `--dataset.rgb_encoder.<field>` (e.g. with `lerobot-record` or `lerobot-rollout`). The same block applies to every camera video stream in that run.
+你可以在 CLI 上使用 `--dataset.rgb_encoder.<field>` 设置这些参数（例如使用 `lerobot-record` 或 `lerobot-rollout`）。同一组设置适用于该次运行中的所有相机视频流。
 
 > [!TIP]
-> Video storage must be on for `rgb_encoder` to have any effect —
-> `use_videos=True` in Python APIs, or `--dataset.video=true` on the CLI (the
-> recording default). With video off, inputs stay as images and `rgb_encoder` is
-> ignored.
+> 必须启用视频存储，`rgb_encoder` 才能生效——
+> 在 Python API 中设置 `use_videos=True`，或在 CLI 上设置 `--dataset.video=true`（录制时的默认值）。
+> 关闭视频时，输入将保持为图像，`rgb_encoder` 将被忽略。
 
-For details on **when** frames are written vs. encoded (streaming vs. post-episode), queues, and other top-level `--dataset.*` switches, see [Streaming Video Encoding](./streaming_video_encoding). For an encoding-parameter comparison and experiments, see the [video-benchmark Space](https://huggingface.co/spaces/lerobot/video-benchmark).
+关于**何时**写入帧与编码帧（流式编码 vs. 片段后编码）、队列以及其他顶层 `--dataset.*` 开关的详细信息，请参见[流式视频编码](./streaming_video_encoding)。有关编码参数对比和实验，请参见[视频基准测试 Space](https://huggingface.co/spaces/lerobot/video-benchmark)。
 
 ---
 
-## Example
+## 示例
 
 ```bash
 lerobot-record \
@@ -40,36 +39,36 @@ lerobot-record \
 
 ---
 
-## Tuning parameters
+## 调优参数
 
 > [!WARNING]
-> The defaults are tuned to balance **compression ratio**, **visual quality**, and **decoding/seek speed** for typical robotics datasets. Changing them can affect both recording (CPU load, frame drops) and training (decoding throughput, image quality).
+> 默认值经过调优，旨在为典型机器人数据集平衡**压缩比**、**视觉质量**和**解码/查找速度**。更改这些参数可能会影响录制（CPU 负载、丢帧）和训练（解码吞吐量、图像质量）。
 >
-> Only override these parameters if you have a specific reason to, and measure the impact on your pipeline before relying on the new settings.
+> 仅在你有特定理由时才重写这些参数，并在依赖新设置之前测量其对流水线的影响。
 
-All flags below are prefixed with `--dataset.rgb_encoder.` on the CLI.
+以下所有标志在 CLI 上均以 `--dataset.rgb_encoder.` 为前缀。
 
-| Parameter       | Type             | Default       | Description                                                                                                                                                                            |
-| --------------- | ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vcodec`        | `str`            | `"libsvtav1"` | Video codec name. `"auto"` picks the first available hardware encoder from a fixed preference list, falling back to `libsvtav1`.                                                       |
-| `pix_fmt`       | `str`            | `"yuv420p"`   | Output pixel format. Must be supported by the chosen codec in your FFmpeg build.                                                                                                       |
-| `g`             | `int`            | `2`           | GOP size — a keyframe every `g` frames. Emitted as FFmpeg option `g`.                                                                                                                  |
-| `crf`           | `int` or `float` | `30`          | Abstract quality value, mapped per codec (see the [mapping](#mapping-videoencoderconfig--ffmpeg-options) below). Lower → higher quality / larger output where the mapping is monotone. |
-| `preset`        | `int` or `str`   | `12` \*       | Encoder speed preset; meaning depends on the codec. <br/>\* When unset and `vcodec=libsvtav1`, LeRobot defaults to `12`.                                                               |
-| `fast_decode`   | `int`            | `0`           | `libsvtav1`: `0–2`, passed via `svtav1-params`. <br/>`h264` / `hevc` (software): if `>0`, sets `tune=fastdecode`. <br/>Other codecs: usually unused.                                   |
-| `video_backend` | `str`            | `"pyav"`      | Only `"pyav"` is currently implemented for video encoding.                                                                                                                             |
-| `extra_options` | `dict`           | `{}`          | Extra FFmpeg or codec specific options merged after the structured fields above. Cannot override keys already set by those fields.                                                     |
+| 参数              | 类型               | 默认值             | 描述                                                                                                                                       |
+| ----------------- | ------------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `vcodec`          | `str`              | `"libsvtav1"`      | 视频编解码器名称。`"auto"` 从固定优先级列表中选取第一个可用的硬件编码器，若不可用则回退到 `libsvtav1`。                                     |
+| `pix_fmt`         | `str`              | `"yuv420p"`        | 输出像素格式。必须被你选择的编解码器在你的 FFmpeg 构建版本中支持。                                                                         |
+| `g`               | `int`              | `2`                | GOP 大小——每 `g` 帧一个关键帧。以 FFmpeg 选项 `g` 的形式传递。                                                                             |
+| `crf`             | `int` 或 `float`   | `30`               | 抽象质量值，按编解码器映射（见下方的 [映射](#videoencoderconfig--ffmpeg-选项的映射)）。值越低 → 质量越高 / 输出越大（在映射单调的情况下）。 |
+| `preset`          | `int` 或 `str`     | `12` \*            | 编码器速度预设；含义取决于编解码器。<br/>\* 当未设置且 `vcodec=libsvtav1` 时，LeRobot 默认为 `12`。                                         |
+| `fast_decode`     | `int`              | `0`                | `libsvtav1`：`0–2`，通过 `svtav1-params` 传递。<br/>`h264` / `hevc`（软件）：如果 `>0`，设置 `tune=fastdecode`。<br/>其他编解码器：通常未使用。 |
+| `video_backend`   | `str`              | `"pyav"`           | 目前视频编码仅实现了 `"pyav"`。                                                                                                            |
+| `extra_options`   | `dict`             | `{}`               | 额外的 FFmpeg 或编解码器特定选项，在结构化字段之后合并。不能覆盖已通过这些字段设置的键。                                                   |
 
 ---
 
-## Depth streams
+## 深度流
 
-Depth maps (Intel RealSense, Reachy 2) are stored as their **own video streams** alongside the RGB streams. Raw depth (`uint16` millimetres or `float32` metres) can't survive an 8-bit codec, so LeRobot **quantizes** each map to a 12-bit code (`[0, 4095]`) — logarithmically by default, to match the `1/depth` error profile of depth sensors — then packs it into a high-bit-depth pixel format (`gray12le`) and encodes it with a 12-bit codec.
+深度图（Intel RealSense、Reachy 2）作为**独立的视频流**与 RGB 流一起存储。原始深度（`uint16` 毫米或 `float32` 米）无法通过 8 位编解码器保存，因此 LeRobot 将每张深度图**量化**为 12 位编码（`[0, 4095]`）——默认使用对数方式，以匹配深度传感器的 `1/depth` 误差特性——然后将其打包为高位深度像素格式（`gray12le`）并使用 12 位编解码器编码。
 
 <div style="margin:28px 0;padding:14px 0;">
   <div style="margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:6px;font-family:'Source Sans 3',ui-sans-serif,system-ui,sans-serif;font-size:14px;font-weight:600;color:#1B1B1D;">
     <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#DBEAFE;color:#1D4ED8;border-radius:9px;padding:8px 12px;">
-      <span>Raw depth</span>
+      <span>原始深度</span>
       <span style="font-size:11px;font-weight:400;color:#3B6FD4;white-space:nowrap;">
         uint16 mm
         <br />
@@ -81,12 +80,12 @@ Depth maps (Intel RealSense, Reachy 2) are stored as their **own video streams**
     </span>
     <div style="border:2px dashed #C4B5FD;border-radius:13px;padding:18px 12px 12px;position:relative;display:flex;align-items:stretch;gap:6px;">
       <span style="position:absolute;top:-10px;left:12px;background:#fff;padding:0 6px;font-size:11px;font-weight:700;color:#7E22CE;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">
-        Record time
+        录制阶段
       </span>
       <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#F3E8FF;color:#7E22CE;border-radius:9px;padding:8px 12px;">
-        <span>Clip</span>
+        <span>裁剪</span>
         <span style="font-size:11px;font-weight:400;color:#9061C2;white-space:nowrap;">
-          to [depth_min,
+          到 [depth_min,
           <br />
           depth_max]
         </span>
@@ -95,29 +94,29 @@ Depth maps (Intel RealSense, Reachy 2) are stored as their **own video streams**
         →
       </span>
       <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#F3E8FF;color:#7E22CE;border-radius:9px;padding:8px 12px;">
-        <span>Quantize</span>
+        <span>量化</span>
         <span style="font-size:11px;font-weight:400;color:#9061C2;white-space:nowrap;">
-          12-bit codes 0–4095
+          12 位编码 0–4095
           <br />
-          log (default) or linear
+          对数（默认）或线性
         </span>
       </span>
       <span style="display:flex;align-items:center;font-size:16px;color:#C3CBD9;">
         →
       </span>
       <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#F3E8FF;color:#7E22CE;border-radius:9px;padding:8px 12px;">
-        <span>Pack</span>
+        <span>打包</span>
         <span style="font-size:11px;font-weight:400;color:#9061C2;white-space:nowrap;">
-          into gray12le
+          到 gray12le
           <br />
-          plane
+          平面
         </span>
       </span>
       <span style="display:flex;align-items:center;font-size:16px;color:#C3CBD9;">
         →
       </span>
       <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#F3E8FF;color:#7E22CE;border-radius:9px;padding:8px 12px;">
-        <span>Encode</span>
+        <span>编码</span>
         <span style="font-size:11px;font-weight:400;color:#9061C2;white-space:nowrap;">
           HEVC
           <br />
@@ -131,9 +130,9 @@ Depth maps (Intel RealSense, Reachy 2) are stored as their **own video streams**
     <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#FEF3C7;color:#B45309;border-radius:9px;padding:8px 12px;">
       <span>MP4</span>
       <span style="font-size:11px;font-weight:400;color:#C77D18;white-space:nowrap;">
-        stored
+        存储
         <br />
-        stream
+        流
       </span>
     </span>
     <span style="display:flex;align-items:center;font-size:16px;color:#34A06B;">
@@ -141,19 +140,19 @@ Depth maps (Intel RealSense, Reachy 2) are stored as their **own video streams**
     </span>
     <div style="border:2px dashed #6EE7B7;border-radius:13px;padding:18px 12px 12px;position:relative;display:flex;align-items:center;gap:6px;">
       <span style="position:absolute;top:-10px;left:12px;background:#fff;padding:0 6px;font-size:11px;font-weight:700;color:#047857;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">
-        Load time
+        加载阶段
       </span>
       <span style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;background:#D1FAE5;color:#047857;border-radius:9px;padding:8px 12px;">
-        <span>Dequantize</span>
+        <span>反量化</span>
         <span style="font-size:11px;font-weight:400;color:#059669;white-space:nowrap;">
-          to mm / m
+          到 mm / m
         </span>
       </span>
     </div>
   </div>
 </div>
 
-Configure the depth pipeline through a parallel **`depth_encoder`** block (`DepthEncoderConfig`). It shares every `RGBEncoderConfig` field (`vcodec`, `pix_fmt`, `crf`, …) and adds four quantizer knobs, set via `--dataset.depth_encoder.<field>`:
+通过并行的 **`depth_encoder`** 块（`DepthEncoderConfig`）配置深度流水线。它拥有 `RGBEncoderConfig` 的所有字段（`vcodec`、`pix_fmt`、`crf` 等），并额外增加了四个量化参数，通过 `--dataset.depth_encoder.<field>` 设置：
 
 ```bash
 lerobot-record \
@@ -164,25 +163,25 @@ lerobot-record \
     --dataset.depth_encoder.use_log=true
 ```
 
-| Parameter       | Type    | Default                         | Description                                                                                                                            |
-| --------------- | ------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `vcodec`        | `str`   | `"hevc"`                        | HEVC Main 12 (a 12-bit-capable codec, MP4-compatible).                                                                                 |
-| `extra_options` | `dict`  | `{"x265-params": "lossless=1"}` | **Depth defaults to lossless** (exact round-trip); `crf` is ignored. Pass `extra_options={}` and set `crf` for a smaller lossy stream. |
-| `pix_fmt`       | `str`   | `"gray12le"`                    | Single-channel 12-bit pixel format used to carry the quantized codes.                                                                  |
-| `depth_min`     | `float` | `0.01`                          | Depth in metres mapped to quantum `0`. Values below are clipped on decode.                                                             |
-| `depth_max`     | `float` | `10.0`                          | Depth in metres mapped to quantum `4095`. Values above are clipped on decode.                                                          |
-| `shift`         | `float` | `3.5`                           | Pre-log offset (metres) used in logarithmic quantization for numerical stability near zero. Must satisfy `depth_min + shift > 0`.      |
-| `use_log`       | `bool`  | `True`                          | If `true`, quantize in log-space (recommended for typical depth sensors). Set to `false` for uniform/linear quantization.              |
+| 参数              | 类型    | 默认值                            | 描述                                                                                                                        |
+| ----------------- | ------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `vcodec`          | `str`   | `"hevc"`                          | HEVC Main 12（一种支持 12 位且兼容 MP4 的编解码器）。                                                                       |
+| `extra_options`   | `dict`  | `{"x265-params": "lossless=1"}`   | **深度默认使用无损编码**（精确往返）；`crf` 被忽略。传入 `extra_options={}` 并设置 `crf` 可获得更小的有损流。                 |
+| `pix_fmt`         | `str`   | `"gray12le"`                      | 用于承载量化编码的单通道 12 位像素格式。                                                                                    |
+| `depth_min`       | `float` | `0.01`                            | 映射到量子值 `0` 的深度（米）。低于此值的深度在解码时会被裁剪。                                                             |
+| `depth_max`       | `float` | `10.0`                            | 映射到量子值 `4095` 的深度（米）。高于此值的深度在解码时会被裁剪。                                                          |
+| `shift`           | `float` | `3.5`                             | 对数量化中用于数值稳定性的预对数偏移量（米），在零值附近有效。必须满足 `depth_min + shift > 0`。                            |
+| `use_log`         | `bool`  | `True`                            | 如果为 `true`，在对数空间中量化（推荐用于典型深度传感器）。设置为 `false` 则使用均匀/线性量化。                             |
 
 > [!TIP]
-> `depth_min`, `depth_max`, and `shift` are always interpreted in **metres**, regardless of the input depth's unit. Inputs are auto-detected: integer arrays (e.g. `uint16` millimetres straight from a RealSense) are treated as millimetres, floating arrays as metres.
-> Pick `depth_min` / `depth_max` to bracket the actual working range of your sensor — quanta outside that range saturate, which can crush detail at the boundaries.
+> `depth_min`、`depth_max` 和 `shift` 始终以**米**为单位解释，无论输入深度的实际单位是什么。输入会自动检测：整数数组（例如直接来自 RealSense 的 `uint16` 毫米值）视为毫米，浮点数组视为米。
+> 选择 `depth_min` / `depth_max` 时要覆盖传感器实际的工���范围——超出该范围的量子值会饱和，可能会丢失边界处的细节。
 
-Depth features are flagged with `"is_depth_map": true` in `meta/info.json`, and their quantizer settings (`video.depth_min`, `video.depth_max`, `video.shift`, `video.use_log`) are persisted — which is what lets depth be **dequantized back to physical units** on load.
+深度特征在 `meta/info.json` 中以 `"is_depth_map": true` 标记，其量化器设置（`video.depth_min`、`video.depth_max`、`video.shift`、`video.use_log`）会被持久化——这使得深度在加载时能够**反量化回物理单位**。
 
-### Output unit at load time
+### 加载时的输出单位
 
-`depth_encoder` is a **record-time** concern. The unit that depth maps are dequantized to on _load_ (e.g. during training) is set separately by the read-time flag `--dataset.depth_output_unit`:
+`depth_encoder` 是一个**录制时**的关注点。深度图在**加载时**（例如在训练期间）反量化为哪个单位，由读取时的标志 `--dataset.depth_output_unit` 单独设置：
 
 ```bash
 lerobot-train \
@@ -191,18 +190,18 @@ lerobot-train \
     --policy.type=act
 ```
 
-| Parameter           | Type  | Default | Description                                                                                  |
-| ------------------- | ----- | ------- | -------------------------------------------------------------------------------------------- |
-| `depth_output_unit` | `str` | `"mm"`  | Physical unit depth maps are dequantized to on load: `"mm"` (millimetres) or `"m"` (metres). |
+| 参数                | 类型  | 默认值 | 描述                                                         |
+| ------------------- | ----- | ------ | ------------------------------------------------------------ |
+| `depth_output_unit` | `str` | `"mm"` | 深度图在加载时反量化为的物理单位：`"mm"`（毫米）或 `"m"`（米）。 |
 
 > [!TIP]
-> This is purely a decode-time presentation choice — it does **not** alter the stored video or its metadata, so the same dataset can be read as `mm` or `m` without re-encoding. It has no effect on datasets without depth cameras.
+> 这纯粹是解码时的呈现选择——它**不会**更改存储的视频或其元数据，因此同一数据集可以在不重新编码的情况下以 `mm` 或 `m` 读取。对没有深度相机的数据集没有影响。
 
 ---
 
-## Persistence in dataset metadata
+## 在数据集元数据中的持久化
 
-After the first episode of a video stream is encoded, the encoder configuration is **persisted into the dataset metadata** (`meta/info.json`) under each video feature, alongside the values probed from the file itself. For a video feature `observation.images.<camera>`, the layout in `info.json` is:
+在视频流的第一个片段编码完成后，编码器配置会**持久化到数据集元数据**（`meta/info.json`）中，存储在对应的视频特征下，同时还会保存从文件本身探测到的值。对于视频特征 `observation.images.<camera>`，`info.json` 中的结构如下：
 
 ```json
 {
@@ -230,26 +229,25 @@ After the first episode of a video stream is encoded, the encoder configuration 
 }
 ```
 
-Two sources contribute to the `info` block:
+`info` 块由两个来源提供数据：
 
-| Source              | Where it comes from                                   | Fields                                                                                                                  |
-| ------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Stream-derived**  | Read back from the encoded MP4 with PyAV.             | `video.height`, `video.width`, `video.codec`, `video.pix_fmt`, `video.fps`, `video.channels`, `is_depth_map`, `audio.*` |
-| **Encoder-derived** | Taken from `RGBEncoderConfig` / `DepthEncoderConfig`. | `video.g`, `video.crf`, `video.preset`, `video.fast_decode`, `video.video_backend`, `video.extra_options`               |
+| 来源                   | 数据来源                           | 字段                                                                                                                 |
+| ---------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **流派生（Stream-derived）**   | 使用 PyAV 从编码后的 MP4 中读回。 | `video.height`、`video.width`、`video.codec`、`video.pix_fmt`、`video.fps`、`video.channels`、`is_depth_map`、`audio.*` |
+| **编码器派生（Encoder-derived）** | 取自 `RGBEncoderConfig` / `DepthEncoderConfig`。 | `video.g`、`video.crf`、`video.preset`、`video.fast_decode`、`video.video_backend`、`video.extra_options`               |
 
 > [!IMPORTANT]
-> This block is populated **once**, from the **first** episode. It assumes every
-> episode in the dataset was encoded with the same `rgb_encoder`. Changing
-> encoder settings partway through a recording is not supported — the
-> `info.json` will only reflect the parameters used for the first episode.
+> 该信息块仅在**第一个**片段时填充。它假定数据集中的每个
+> 片段都使用相同的 `rgb_encoder` 编码。不支持在录制过程中途更改
+> 编码器设置——`info.json` 仅反映第一个片段使用的参数。
 
 ---
 
-## Merging datasets
+## 合并数据集
 
-When aggregating datasets with `merge_datasets`, video files are concatenated as-is (no re-encoding), and encoder fields in `info.json` are merged per-key:
+当使用 `merge_datasets` 聚合数据集时，视频文件按原样拼接（不重新编码），`info.json` 中的编码器字段按键合并：
 
-| Merge rule         | Fields                                                                             | Behaviour                                                                                                                                                 |
-| ------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Must match**     | `video.codec`, `video.pix_fmt`, `video.height`, `video.width`, `video.fps`         | Stream-derived fields must match across sources, otherwise FFmpeg's concat demuxer fails.                                                                 |
-| **Merged loosely** | `video.g`, `video.crf`, `video.preset`, `video.fast_decode`, `video.extra_options` | Encoder-tuning fields. If every source agrees, the value is kept; if not, it's set to `null` (or `{}` for `video.extra_options`) and a warning is logged. |
+| 合并规则           | 字段                                                                            | 行为                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **必须匹配**       | `video.codec`、`video.pix_fmt`、`video.height`、`video.width`、`video.fps`       | 流派生字段必须在各来源之间匹配，否则 FFmpeg 的 concat 解复用器会失败。                                                  |
+| **宽松合并**       | `video.g`、`video.crf`、`video.preset`、`video.fast_decode`、`video.extra_options` | 编码器调优字段。如果所有来源的值一致，则保留该值；如果不一致，则设为 `null`（对于 `video.extra_options` 设为 `{}`）并记录警告。 |

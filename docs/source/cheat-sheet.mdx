@@ -1,38 +1,38 @@
-# Cheat sheet
+# 速查表
 
-All of the LeRobot commands in one place. If you forgot how to use a specific command or want to learn about a new one you can do it here.
+所有 LeRobot 命令汇总于此。如果你忘记了某个特定命令的用法，或者想了解一个新命令，可以在此查找。
 
 > [!WARNING]
-> For all of the commands listed below remember to change the ports/names/ids to your own values!
+> 对于下面列出的所有命令，请记得将端口/名称/ID 替换为你自己的值！
 
 > [!TIP]
-> Another great way to look at all the commands and get them configured for your specific setup is to use this [Jupyter Notebook](https://github.com/huggingface/lerobot/blob/main/examples/notebooks/quickstart.ipynb).
+> 查看所有命令并根据你的具体设置进行配置的另一个好方法是使用这个 [Jupyter Notebook](https://github.com/huggingface/lerobot/blob/main/examples/notebooks/quickstart.ipynb)。
 
-### Setup and installation
+### 安装与设置
 
-For installation please look at [LeRobot Installation](https://huggingface.co/docs/lerobot/main/en/installation).
+有关安装，请查阅 [LeRobot 安装指南](https://huggingface.co/docs/lerobot/main/en/installation)。
 
-### Useful tools
+### 实用工具
 
-###### Find port
+###### 查找端口
 
-Use this to identify which serial ports your robots are connected to. Follow the instructions in your terminal: you will be asked to unplug the USB cable and press Enter. The script will then detect and print the correct serial port for that robot.
+使用此命令识别你的机器人连接到哪些串行端口。按照终端中的提示操作：你需要拔掉 USB 线缆并按 Enter 键。脚本会检测并打印该机器人的正确串行端口。
 
 ```bash
 lerobot-find-port
 ```
 
-###### Find cameras
+###### 查找摄像头
 
-Quickly find camera indices and verify their output. This command prints camera information to the terminal and saves test frames from each detected camera to `lerobot/outputs/captured_images`
+快速查找摄像头索引并验证其输出。此命令将摄像头信息打印到终端，并将每个检测到的摄像头的测试帧保存到 `lerobot/outputs/captured_images`
 
 ```bash
 lerobot-find-cameras
 ```
 
-### Calibration
+### 标定
 
-In most cases you will need to perform calibration just once for each robot and teleoperation device. Before performing the calibration make sure that all the joints are roughly in the middle position.
+大多数情况下，你只需要对每个机器人和遥操作设备执行一次标定。在进行标定之前，请确保所有关节大致处于中间位置。
 
 ```bash
 lerobot-calibrate \
@@ -41,11 +41,11 @@ lerobot-calibrate \
     --robot.id=my_follower_arm
 ```
 
-Make sure that you use the same IDs used during calibration later for the other scripts. That's how LeRobot finds the calibration files.
+确保后续在其他脚本中使用与标定时相同的 ID。LeRobot 通过 ID 查找标定文件。
 
-### Teleoperation
+### 遥操作
 
-Teleoperating with two cameras and displaying the data with Rerun.
+使用两个摄像头进行遥操作并通过 Rerun 显示数据。
 
 ```bash
 lerobot-teleoperate \
@@ -59,12 +59,12 @@ lerobot-teleoperate \
     --display_data=true
 ```
 
-### Recording a dataset
+### 录制数据集
 
-The dataset is automatically uploaded to the server and saved under repo_id, make sure you are logged in to your HF account with CLI:
+数据集会自动上传到服务器并保存在 repo_id 下，请确保已通过 CLI 登录到你的 Hugging Face 账户：
 `hf auth login`
 
-You can get the token from: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+可以从以下地址获取令牌： [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 
 ```bash
 lerobot-record \
@@ -82,16 +82,16 @@ lerobot-record \
     --display_data=true
 ```
 
-While collecting the dataset you can control the process with your keyboard:
-Control the data recording flow using keyboard shortcuts:
+在采集数据集时，你可以使用键盘控制整个过程：
+使用键盘快捷键控制数据录制流程：
 
-- Press **Right Arrow (`→`)**: Save episode and move to the next.
-- Press **Left Arrow (`←`)**: Delete current episode and retry.
-- Press **Escape (`ESC`)**: Stop, encode videos, and upload.
+- 按 **右箭头键（`→`）**：保存当前片段并进入下一个。
+- 按 **左箭头键（`←`）**：删除当前片段并重试。
+- 按 **退出键（`ESC`）**：停止、编码视频并上传。
 
-### Recording depth
+### 录制深度数据
 
-Intel RealSense cameras (`type: intelrealsense`) record a depth stream when you set `use_depth: true`. Depth is quantized to 12-bit codes and stored as its own video.
+Intel RealSense 摄像头（`type: intelrealsense`）在设置 `use_depth: true` 时会录制深度流。深度数据被量化为 12 位编码并存储为单独的视频。
 
 ```bash
 lerobot-record \
@@ -105,9 +105,9 @@ lerobot-record \
     --dataset.depth_encoder.use_log=true
 ```
 
-### Video encoding parameters
+### 视频编码参数
 
-RGB and depth streams are encoded independently via the `--dataset.rgb_encoder.*` and `--dataset.depth_encoder.*` keys.
+RGB 和深度流通过 `--dataset.rgb_encoder.*` 和 `--dataset.depth_encoder.*` 参数独立编码。
 
 ```bash
 lerobot-record \
@@ -119,9 +119,9 @@ lerobot-record \
     --dataset.depth_encoder.extra_options='{"x265-params": "lossless=1"}'
 ```
 
-### Training
+### 训练
 
-Depending on your hardware training the policy might take a few hours. That's how you train simple `ACT` policy:
+根据你的硬件配置，策略训练可能需要几个小时。以下是训练简单 `ACT` 策略的方法：
 
 ```bash
 lerobot-train \
@@ -135,10 +135,10 @@ lerobot-train \
     --steps=20000
 ```
 
-- Policy Types: `act`, `diffusion`, `smolvla`, `pi05`
-- Devices: `cuda` (NVIDIA), `mps` (Apple Silicon), `cpu`
+- 策略类型：`act`、`diffusion`、`smolvla`、`pi05`
+- 设备：`cuda`（NVIDIA）、`mps`（Apple Silicon）、`cpu`
 
-If you want to fine-tune a specific model you can provide the path to the model. In this case path is enough and type can be skipped.
+如果你想微调特定模型，可以提供模型路径。此时路径就足够了，可以省略类型。
 
 ```bash
 lerobot-train \
@@ -150,20 +150,20 @@ lerobot-train \
     --steps=20000
 ```
 
-No local GPU? Add `--job.target=<flavor>` (e.g. `a10g-small`) to either command and `lerobot-train` runs it on [Hugging Face Jobs](https://huggingface.co/docs/hub/jobs) instead — it uploads a local-only dataset for you and pushes the trained model. List flavors with `hf jobs hardware`.
+没有本地 GPU？任一条命令加上 `--job.target=<flavor>`（例如 `a10g-small`），`lerobot-train` 就会在 [Hugging Face Jobs](https://huggingface.co/docs/hub/jobs) 上运行 —— 它会自动上传本地数据集并推送训练好的模型。使用 `hf jobs hardware` 列出可用的 flavor。
 
-To resume, point `--config_path` at a checkpoint and add `--resume=true`. It accepts a local path or a Hub repo id (the latest checkpoint is fetched), and works locally or on a job by adding `--job.target=<flavor>`:
+要恢复训练，将 `--config_path` 指向一个检查点并添加 `--resume=true`。它可以接受本地路径或 Hub 仓库 ID（会获取最新的检查点），并且通过添加 `--job.target=<flavor>` 可以在本地或任务上工作：
 
 ```bash
 lerobot-train --config_path=${HF_USER}/policy_test --resume=true --job.target=a10g-small
 ```
 
-### Inference
+### 推理
 
-Inference means running the trained policy/model on a robot. For that we use `lerobot-rollout`. You will need to provide a path to your policy. It can be a local path or a path to Hugging Face for example "lerobot/folding_latest". Your cameras configuration needs to match what was used when collecting the dataset. Duration is in seconds if unspecified, it will run forever.
+推理是指在机器人上运行训练好的策略/模型。我们使用 `lerobot-rollout` 来实现此目的。你需要提供策略的路径。它可以是本地路径，也可以是 Hugging Face 上的路径，例如 "lerobot/folding_latest"。你的摄像头配置需要与采集数据集时使用的配置一致。duration 以秒为单位，如果未指定，将无限运行。
 
 > [!TIP]
-> If you are using the previous release V0.5.1 instead of `lerobot-rollout` you need to use `lerobot-record`. More information [here](https://huggingface.co/docs/lerobot/v0.5.1/en/il_robots#run-inference-and-evaluate-your-policy).
+> 如果你使用的是之前的 V0.5.1 版本，需要使用 `lerobot-record` 而不是 `lerobot-rollout`。更多信息请参见[此处](https://huggingface.co/docs/lerobot/v0.5.1/en/il_robots#run-inference-and-evaluate-your-policy)。
 
 ```bash
 lerobot-rollout \

@@ -1,47 +1,46 @@
 # π₀ (pi0)
 
-This repository contains the Hugging Face port of **π₀**, adapted from [OpenPI](https://github.com/Physical-Intelligence/openpi) by the Physical Intelligence.
-It is designed as a **Vision-Language-Action model for general robot control**.
+本仓库包含 **π₀** 的 Hugging Face 移植版本，改编自 Physical Intelligence 的 [OpenPI](https://github.com/Physical-Intelligence/openpi)。
+它被设计为**用于通用机器人控制的视觉-语言-动作模型**（Vision-Language-Action model）。
 
 ---
 
-## Model Overview
+## 模型概述（Model Overview）
 
-| Feature              | π₀                                                     | π₀.₅                                      |
-| -------------------- | ------------------------------------------------------ | ----------------------------------------- |
-| Time Conditioning    | Concatenates time with actions via `action_time_mlp_*` | Uses `time_mlp_*` for AdaRMS conditioning |
-| AdaRMS               | Not used                                               | Used in action expert                     |
-| Tokenizer Length     | 48 tokens                                              | 200 tokens                                |
-| Discrete State Input | False (Uses `state_proj` layer)                        | True                                      |
-| Parameter Count      | Higher (includes state embedding)                      | Lower (no state embedding)                |
+| 特性                  | π₀                                                                 | π₀.₅                                                   |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| 时间条件（Time Conditioning） | 通过 `action_time_mlp_*` 将时间与动作拼接在一起                              | 使用 `time_mlp_*` 进行 AdaRMS 条件化                  |
+| AdaRMS               | 未使用                                                              | 在动作专家网络（action expert）中使用                  |
+| 分词器长度（Tokenizer Length） | 48 个 token                                                        | 200 个 token                                           |
+| 离散状态输入（Discrete State Input） | 否（使用 `state_proj` 层）                                              | 是                                                     |
+| 参数规模              | 更大（包含状态嵌入层）                                                  | 更小（无状态嵌入层）                                    |
 
 ---
 
-## Relative Actions
+## 相对动作（Relative Actions）
 
-π₀ supports training with **relative actions**, where the model learns relative offsets
-from the current robot state instead of absolute joint positions. This mirrors the
-relative-action transform in OpenPI (`DeltaActions`) and can improve performance.
+π₀ 支持使用**相对动作**（relative actions）进行训练，模型学习的是相对于当前机器人状态的偏移量，而非绝对关节位置。
+这相当于 OpenPI 中的相对动作变换（`DeltaActions`），可以提升性能。
 
-### How it works
+### 工作原理
 
-1. **During preprocessing**, absolute actions are converted to relative offsets:
-   `relative = action - state` (for selected joints).
-2. The relative actions are normalized using statistics computed from the relative distribution.
-3. **During postprocessing**, predicted relative actions are converted back to absolute:
-   `absolute = relative + state`.
+1. **预处理阶段**，绝对动作被转换为相对偏移量：
+   `relative = action - state`（针对选定关节）。
+2. 相对动作使用从相对分布计算得到的统计量进行归一化。
+3. **后处理阶段**，预测的相对动作被转换回绝对动作：
+   `absolute = relative + state`。
 
-Joints listed in `relative_exclude_joints` (e.g., gripper) are kept absolute.
+`relative_exclude_joints`（如夹爪）中列出的关节保持为绝对动作。
 
-### Configuration
+### 配置参数
 
-| Parameter                 | Type        | Default       | Description                                                      |
-| ------------------------- | ----------- | ------------- | ---------------------------------------------------------------- |
-| `use_relative_actions`    | `bool`      | `False`       | Enable relative-action training                                  |
-| `relative_exclude_joints` | `list[str]` | `["gripper"]` | Joint names to keep absolute (matched by substring)              |
-| `action_feature_names`    | `list[str]` | `None`        | Auto-populated from dataset metadata at runtime by `make_policy` |
+| 参数                        | 类型          | 默认值          | 描述                                                  |
+| -------------------------- | ------------- | --------------- | ----------------------------------------------------- |
+| `use_relative_actions`     | `bool`        | `False`         | 启用相对动作训练                                      |
+| `relative_exclude_joints`  | `list[str]`   | `["gripper"]`   | 保持为绝对动作的关节名称（按子串匹配）                |
+| `action_feature_names`     | `list[str]`   | `None`          | 运行时由 `make_policy` 根据数据集的元数据自动填充      |
 
-### Training example
+### 训练示例
 
 ```bash
 python -m lerobot.scripts.lerobot_train \
@@ -51,16 +50,15 @@ python -m lerobot.scripts.lerobot_train \
   --policy.relative_exclude_joints='["gripper"]'
 ```
 
-When `use_relative_actions=true`, the training script automatically:
+当 `use_relative_actions=true` 时，训练脚本会自动：
 
-- Computes relative action statistics from the dataset (sampled chunk-level relative actions)
-- Replaces the standard action stats with relative stats for normalization
-- Broadcasts these stats across all ranks in distributed training
+- 根据数据集计算相对动作统计量（采样的片段级相对动作，chunk-level relative actions）
+- 用相对统计量替换标准动作统计量，用于归一化
+- 在分布式训练中将这些统计量广播到所有进程
 
-### Recomputing stats for an existing dataset
+### 为已有数据集重新计算统计量
 
-If you want to precompute relative action stats offline, use `recompute_stats` from
-`lerobot.datasets`:
+如果你希望离线预计算相对动作统计量，可以使用 `lerobot.datasets` 中的 `recompute_stats`：
 
 ```python
 from lerobot.datasets import LeRobotDataset, recompute_stats
@@ -75,9 +73,9 @@ dataset = recompute_stats(
 
 ---
 
-## Citation
+## 引用（Citation）
 
-If you use this work, please cite both **OpenPI** and the π₀ paper:
+如果您使用了本工作，请同时引用 **OpenPI** 和 π₀ 论文：
 
 ```bibtex
 @misc{openpi2024,
@@ -102,6 +100,6 @@ If you use this work, please cite both **OpenPI** and the π₀ paper:
 
 ---
 
-## License
+## 许可证（License）
 
-This port follows the **Apache 2.0 License**, consistent with the original [OpenPI repository](https://github.com/Physical-Intelligence/openpi).
+本移植版本遵循 **Apache 2.0 License**，与原始 [OpenPI 仓库](https://github.com/Physical-Intelligence/openpi) 一致。

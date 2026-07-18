@@ -1,74 +1,50 @@
-# Language columns and recipes
+# 语言列（Language columns）和配方（Recipes）
 
-Most LeRobot datasets ship with a single `task` string per episode — fine for
-short, single-instruction skills, but not enough for the longer-horizon,
-multi-modal robot policies the field is moving toward (high-level planning,
-memory, interjections, VQA, tool use). To support those policies without
-forking the dataset format, LeRobot extends `LeRobotDataset` with two optional
-language columns and a small recipe layer that turns those rows into
-chat-style training samples on the fly.
+大多数 LeRobot 数据集每个回合（episode）只附带一个 `task` 字符串——这对简短的单指令技能来说足够了，但对于该领域正在发展的长时域、多模态机器人策略（高层规划、记忆、插话、VQA、工具使用）来说则不够。为了支持这些策略而无需分支数据集格式，LeRobot 使用两个可选的语言列和一个轻量级配方层扩展了 `LeRobotDataset`，可在训练时将这些行动态转换为聊天风格的样本。
 
-The design splits cleanly into three layers:
+这一设计清晰地分为三个层次：
 
-1. **Data in the dataset** — language annotations stored next to frames in
-   `data/chunk-*/file-*.parquet` as two optional columns (`language_persistent`
-   and `language_events`). Datasets without these columns keep their existing
-   behavior.
-2. **Recipe** — a YAML file that declares which annotation rows to bind and
-   how to lay them out as chat turns (`role`, `content`, optional images,
-   optional tool calls). Recipes are pure config; no Python required to add a
-   new one.
-3. **Training format** — at sample time, `RenderMessagesStep` resolves the
-   recipe against the per-frame annotations and emits HF-style `messages` plus
-   LeRobot-specific sidecars (`message_streams`, `target_message_indices`)
-   that policy processors consume.
+1. **数据集中的数据** —— 作为两个可选列（`language_persistent` 和 `language_events`）存储在 `data/chunk-*/file-*.parquet` 中帧旁边的语言注释。没有这些列的数据集保持原有行为。
+2. **配方（Recipe）** —— 一个 YAML 文件，声明要绑定哪些注释行以及如何将它们布局为聊天轮次（`role`、`content`、可选图像、可选工具调用）。配方是纯配置；添加新配方无需编写 Python 代码。
+3. **训练格式** —— 在样本采样时，`RenderMessagesStep` 根据每帧注释解析配方，并输出 HF 风格的 `messages` 加上 LeRobot 特定的侧数据（`message_streams`、`target_message_indices`），供策略处理器消费。
 
-This page describes each layer in turn.
+本页依次描述每个层次。
 
-## Layer 1 — language columns in the dataset
+## 第一层 —— 数据集中的语言列
 
-The two optional columns live next to frame data in
-`data/chunk-*/file-*.parquet`:
+两个可选列位于 `data/chunk-*/file-*.parquet` 中的帧数据旁边：
 
-- `language_persistent`: a list of rows broadcast across every frame in an episode for state that remains active, such as `subtask`, `plan`, and `memory`.
-- `language_events`: a list of rows only on the exact frame where an event was emitted, such as `interjection`, `vqa`, and speech tool calls.
+- `language_persistent`：一个行列表，对回合中的每一帧广播，用于表示持续活跃的状态，例如 `subtask`、`plan` 和 `memory`。
+- `language_events`：一个行列表，仅出现在事件被发出的精确帧上，例如 `interjection`、`vqa` 和语音工具调用。
 
-Both columns share the same row shape (event rows omit `timestamp` because the
-frame the row sits on already provides it):
+两个列共享相同的行结构（事件行省略 `timestamp`，因为该行所在的帧已经提供了它）：
 
 ```text
 role: string
 content: string | null
 style: string | null
-timestamp: float32        # persistent rows only
-camera: string | null     # observation.images.* feature key, view-dependent rows only
+timestamp: float32        # 仅持续行
+camera: string | null     # observation.images.* 特征键，仅视角相关行
 tool_calls: list[Json] | null
 ```
 
-The `camera` field tags rows whose `content` is grounded in a specific camera
-view. Rows of view-dependent styles (`vqa` and `trace`) MUST set `camera` to
-the matching `observation.images.*` feature key. Rows of every other style —
-including `motion`, which describes robot-frame primitives in joint / Cartesian
-terms — MUST leave `camera` as `null`. Pipeline writers and the validator
-enforce this via `validate_camera_field(style, camera)`.
+`camera` 字段标记其 `content` 与特定摄像头视角相关的行。视角相关风格（`vqa` 和 `trace`）的行**必须**将 `camera` 设置为匹配的 `observation.images.*` 特征键。所有其他风格的行——包括以关节/笛卡尔术语描述机器人框架基元的 `motion`——**必须**将 `camera` 保留为 `null`。流程编写者和验证器通过 `validate_camera_field(style, camera)` 强制执行此规则。
 
-`meta/tasks.parquet` remains the canonical source for the task. The special `${task}` recipe binding always reads that task string and does not depend on language annotations.
+`meta/tasks.parquet` 仍然是任务（task）的规范来源。特殊的 `${task}` 配方绑定始终读取该任务字符串，不依赖于语言注释。
 
-### Architecture
+### 架构
 
-The language stack itself has three internal modules backing layer 1:
+语言栈本身有三个内部模块支持第一层：
 
-1. `lerobot.datasets.language` defines the schema, style registry, and `column_for_style`.
-2. `lerobot.datasets.language_render` resolves rows and renders messages.
-3. `RenderMessagesStep` turns dataset samples into `messages`, `message_streams`, and `target_message_indices`.
+1. `lerobot.datasets.language` 定义了模式、风格注册表和 `column_for_style`。
+2. `lerobot.datasets.language_render` 解析行并渲染消息。
+3. `RenderMessagesStep` 将数据集样本转换为 `messages`、`message_streams` 和 `target_message_indices`。
 
-`LeRobotDataset` stays recipe-agnostic. It passes `language_persistent` and `language_events` through when present, and unannotated datasets keep their existing behavior.
+`LeRobotDataset` 保持与配方无关（recipe-agnostic）。当提供 `language_persistent` 和 `language_events` 时，它会透传它们；没有注释的数据集保持原有行为。
 
-## Layer 2 — recipe anatomy
+## 第二层 —— 配方结构
 
-Recipes are YAML files backed by `TrainingRecipe` and `MessageTurn`. They
-declare which annotation rows to pull (via `bindings`) and how to compose them
-into chat turns (`messages`).
+配方是由 `TrainingRecipe` 和 `MessageTurn` 支持的 YAML 文件。它们声明要提取哪些注释行（通过 `bindings`）以及如何将它们组合成聊天轮次（`messages`）。
 
 ```yaml
 messages:
@@ -76,35 +52,27 @@ messages:
   - { role: assistant, content: "${subtask}", stream: low_level, target: true }
 ```
 
-A recipe can also branch into a weighted **blend** of sub-recipes. At sample
-time, exactly one branch is selected deterministically from the sample index,
-so different frames train different objectives (e.g. memory updates vs.
-low-level execution vs. VQA) without any Python wiring.
+一个配方还可以分支成交替播的加权 **混合（blend）** 子配方。在样本采样时，根据样本索引确定性地选择一个分支，因此不同的帧训练不同的目标（例如内存更新 vs. 低层执行 vs. VQA），无需任何 Python 代码。
 
-### Temporal semantics
+### 时间语义
 
-Persistent styles are active after emission until replaced:
+持久风格在发出后保持活跃，直到被替换：
 
 - `active_at(t, style=subtask)`
 - `nth_prev(style=memory, offset=1)`
 - `nth_next(style=subtask, offset=1)`
 
-Event styles only exist on their exact timestamp:
+事件风格仅存在于其精确时间戳上：
 
 - `emitted_at(t, style=interjection)`
 - `emitted_at(t, style=vqa, role=user, camera=observation.images.top)`
 - `emitted_at(t, role=assistant, tool_name=say)`
 
-Exact event matching has no tolerance window, so writers must stamp event rows with frame timestamps from the parquet data.
+精确事件匹配没有容忍窗口，因此编写者必须使用 parquet 数据中的帧时间戳来标记事件行。
 
-### View-dependent resolution
+### 视角相关解析
 
-For view-dependent styles (`vqa` and `trace`), the resolver gains a
-`camera=` filter parallel to `role=` and `tool_name=`. Datasets with multiple
-cameras typically emit one (`vqa`, `user`) + (`vqa`, `assistant`) pair per
-camera at the same timestamp; without `camera=`, those resolvers see two
-matches and raise an ambiguity error. Recipes consume each camera through its
-own binding plus a matching image block, e.g.
+对于视角相关的风格（`vqa` 和 `trace`），解析器获得一个并行于 `role=` 和 `tool_name=` 的 `camera=` 过滤器。具有多个摄像头的数据集通常在每个摄像头相同时间戳上发出一个（`vqa`，`user`）+（`vqa`，`assistant`）对；如果没有 `camera=`，这些解析器会看到两个匹配并引发歧义错误。配方通过自己的绑定加上匹配的图像块来消费每个摄像头，例如：
 
 ```yaml
 ask_vqa_top:
@@ -127,11 +95,11 @@ ask_vqa_top:
       }
 ```
 
-Add one such sub-recipe per camera the dataset records.
+为数据集记录的每个摄像头添加一个这样的子配方。
 
-## Layer 3 — training format
+## 第三层 —— 训练格式
 
-Rendered samples use HF-style chat messages plus LeRobot sidecars:
+渲染后的样本使用 HF 风格的聊天消息加上 LeRobot 侧数据：
 
 ```python
 sample["messages"]
@@ -139,9 +107,9 @@ sample["message_streams"]
 sample["target_message_indices"]
 ```
 
-The renderer does not apply a tokenizer chat template. Policy processors decide how to serialize the messages for their backbone, which keeps the same dataset usable across SmolVLA, Pi0.5, and any future VLM that expects OpenAI-style chat messages.
+渲染器不应用分词器的聊天模板。策略处理器自行决定如何为其骨干网络序列化消息，这使得同一个数据集能够在 SmolVLA、Pi0.5 以及任何未来期望 OpenAI 风格聊天消息的 VLM 之间共用。
 
-## Graceful absence
+## 优雅的缺失处理
 
-If both language columns are missing, `None`, or empty, `RenderMessagesStep` is a no-op.
-If an event-scoped branch is selected on a frame without the required event row, rendering returns `None`, allowing a loader to retry another sample.
+如果两个语言列都缺失、为 `None` 或为空，`RenderMessagesStep` 将不执行任何操作。
+如果在没有所需事件行的帧上选择了事件作用域的分支，渲染返回 `None`，允许加载器重试另一个样本。

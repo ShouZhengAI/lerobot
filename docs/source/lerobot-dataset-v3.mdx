@@ -1,34 +1,34 @@
 # LeRobotDataset v3.0
 
-`LeRobotDataset v3.0` is a standardized format for robot learning data. It provides unified access to multi-modal time-series data, sensorimotor signals and multi‑camera video, as well as rich metadata for indexing, search, and visualization on the Hugging Face Hub.
+`LeRobotDataset v3.0` 是机器人学习数据的标准化格式。它提供对多模态时间序列数据、感觉运动信号和多摄像头视频的统一访问，以及在 Hugging Face Hub 上用于索引、搜索和可视化的丰富元数据。
 
-This docs will guide you to:
+本文档将指导你：
 
-- Understand the v3.0 design and directory layout
-- Record a dataset and push it to the Hub
-- Load datasets for training with `LeRobotDataset`
-- Stream datasets without downloading using `StreamingLeRobotDataset`
-- Apply image transforms for data augmentation during training
-- Migrate existing `v2.1` datasets to `v3.0`
-- Experiment with other `LeRobotDataset` formats and implementations like Lance
+- 理解 v3.0 的设计和目录布局
+- 录制数据集并推送到 Hub
+- 使用 `LeRobotDataset` 加载数据集进行训练
+- 使用 `StreamingLeRobotDataset` 流式加载数据集，无需下载
+- 在训练期间应用图像变换进行数据增强
+- 将现有 `v2.1` 数据集迁移到 `v3.0`
+- 尝试其他 `LeRobotDataset` 格式和实现，如 Lance
 
-## What’s new in `v3`
+## `v3` 的新特性
 
-- **File-based storage**: Many episodes per Parquet/MP4 file (v2 used one file per episode).
-- **Relational metadata**: Episode boundaries and lookups are resolved through metadata, not filenames.
-- **Hub-native streaming**: Consume datasets directly from the Hub with `StreamingLeRobotDataset`.
-- **Lower file-system pressure**: Fewer, larger files ⇒ faster initialization and fewer issues at scale.
-- **Unified organization**: Clean directory layout with consistent path templates across data and videos.
+- **基于文件的存储**：每个 Parquet/MP4 文件包含多个片段（v2 中每个片段一个文件）。
+- **关系型元数据**：片段边界和查找通过元数据而非文件名解析。
+- **Hub 原生流式加载**：使用 `StreamingLeRobotDataset` 直接从 Hub 消费数据集。
+- **更低文件系统压力**：更少但更大的文件，初始化更快，大规模扩展问题更少。
+- **统一的组织结构**：清晰的目录布局，数据和视频使用一致的路径模板。
 
-## Installation
+## 安装
 
-`LeRobotDataset v3.0` will be included in `lerobot >= 0.4.0`.
+`LeRobotDataset v3.0` 将包含在 `lerobot >= 0.4.0` 中。
 
-Until that stable release, you can use the main branch by following the [build from source instructions](./installation#from-source).
+在稳定版发布之前，你可以按照[从源码构建的说明](./installation#from-source)使用主分支。
 
-## Record a dataset
+## 录制数据集
 
-Run the command below to record a dataset with the SO-101 and push to the Hub:
+运行以下命令，使用 SO-101 录制数据集并推送到 Hub：
 
 ```bash
 lerobot-record \
@@ -48,45 +48,45 @@ lerobot-record \
   --dataset.encoder_threads=2
 ```
 
-See the [recording guide](./il_robots#record-a-dataset) for more details.
+更多详情请参见[录制指南](./il_robots#record-a-dataset)。
 
-## Format design
+## 格式设计
 
-A core v3 principle is **decoupling storage from the user API**: data is stored efficiently (few large files), while the public API exposes intuitive episode-level access.
+v3 的核心原则是**将存储与用户 API 解耦**：数据以高效方式存储（少量大文件），而公共 API 则提供直观的片段级访问。
 
-`v3` has three pillars:
+`v3` 有三大支柱：
 
-1. **Tabular data**: Low‑dimensional, high‑frequency signals (states, actions, timestamps) stored in **Apache Parquet**. Access is memory‑mapped or streamed via the `datasets` stack.
-2. **Visual data**: Camera frames concatenated and encoded into **MP4**. Frames from the same episode are grouped; videos are sharded per camera for practical sizes.
-3. **Metadata**: JSON/Parquet records describing schema (feature names, dtypes, shapes), frame rates, normalization stats, and **episode segmentation** (start/end offsets into shared Parquet/MP4 files).
+1. **表格数据**：低频高维信号（状态、动作、时间戳）存储在 **Apache Parquet** 中。通过内存映射或 `datasets` 栈进行流式访问。
+2. **视觉数据**：摄像头帧被拼接并编码到 **MP4** 中。同一片段的帧被分组存放；每个摄像头的视频按分片（shard）组织为合理大小。
+3. **元数据**：JSON/Parquet 记录描述模式（特征名称、数据类型、形状）、帧率、归一化统计信息和**片段分割信息**（共享 Parquet/MP4 文件中的起始/结束偏移量）。
 
-> To scale to millions of episodes, tabular rows and video frames from multiple episodes are **concatenated** into larger files. Episode‑specific views are reconstructed **via metadata**, not file boundaries.
+> 为了扩展到数百万个片段，来自多个片段的表格行和视频帧被**拼接**到更大的文件中。片段特定的视图通过**元数据**重构，而非通过文件边界。
 
 <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
   <figure style="margin:0; text-align:center;">
     <img
       src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobotdataset-v3/asset1datasetv3.png"
-      alt="LeRobotDataset v3 diagram"
+      alt="LeRobotDataset v3 示意图"
       width="220"
     />
     <figcaption style="font-size:0.9em; color:#666;">
-      From episode‑based to file‑based datasets
+      从基于片段到基于文件的数据集
     </figcaption>
   </figure>
 </div>
 
-### Directory layout (simplified)
+### 目录布局（简化版）
 
-- **`meta/info.json`**: canonical schema (features, shapes/dtypes), FPS, codebase version, and **path templates** to locate data/video shards.
-- **`meta/stats.json`**: global feature statistics (mean/std/min/max) used for normalization; exposed as `dataset.meta.stats`.
-- **`meta/tasks.jsonl`**: natural‑language task descriptions mapped to integer IDs for task‑conditioned policies.
-- **`meta/episodes/`**: per‑episode records (lengths, tasks, offsets) stored as **chunked Parquet** for scalability.
-- **`data/`**: frame‑by‑frame **Parquet** shards; each file typically contains **many episodes**.
-- **`videos/`**: **MP4** shards per camera; each file typically contains **many episodes**.
+- **`meta/info.json`**：规范模式（特征、形状/数据类型）、帧率、代码库版本，以及用于定位数据/视频分片的**路径模板**。
+- **`meta/stats.json`**：全局特征统计信息（均值/标准差/最小值/最大值），用于归一化；通过 `dataset.meta.stats` 访问。
+- **`meta/tasks.jsonl`**：自然语言任务描述，映射为整数 ID，用于任务条件策略（task-conditioned policy）。
+- **`meta/episodes/`**：每个片段的记录（长度、任务、偏移量），以**分块 Parquet** 格式存储以实现可扩展性。
+- **`data/`**：逐帧的 **Parquet** 分片；每个文件通常包含**多个片段**。
+- **`videos/`**：每个摄像头的 **MP4** 分片；每个文件通常包含**多个片段**。
 
-## Load a dataset for training
+## 加载数据集进行训练
 
-`LeRobotDataset` returns Python dictionaries of PyTorch tensors and integrates with `torch.utils.data.DataLoader`. Here is a code example showing its use:
+`LeRobotDataset` 返回 PyTorch 张量的 Python 字典，并与 `torch.utils.data.DataLoader` 集成。以下是一个使用示例：
 
 ```python
 import torch
@@ -94,10 +94,10 @@ from lerobot.datasets import LeRobotDataset
 
 repo_id = "yaak-ai/L2D-v3"
 
-# 1) Load from the Hub (cached locally)
+# 1) 从 Hub 加载（本地缓存）
 dataset = LeRobotDataset(repo_id)
 
-# 2) Random access by index
+# 2) 按索引随机访问
 sample = dataset[100]
 print(sample)
 # {
@@ -108,18 +108,18 @@ print(sample)
 #   ...
 # }
 
-# 3) Temporal windows via delta_timestamps (seconds relative to t)
+# 3) 通过 delta_timestamps 获取时间窗口（相对于 t 的秒数）
 delta_timestamps = {
-    "observation.images.front_left": [-0.2, -0.1, 0.0]  # 0.2s and 0.1s before current frame
+    "observation.images.front_left": [-0.2, -0.1, 0.0]  # 当前帧前 0.2 秒和 0.1 秒
 }
 
 dataset = LeRobotDataset(repo_id, delta_timestamps=delta_timestamps)
 
-# Accessing an index now returns a stack for the specified key(s)
+# 访问索引时，指定键将返回堆叠数据
 sample = dataset[100]
-print(sample["observation.images.front_left"].shape)  # [T, C, H, W], where T=3
+print(sample["observation.images.front_left"].shape)  # [T, C, H, W], 其中 T=3
 
-# 4) Wrap with a DataLoader for training
+# 4) 使用 DataLoader 包装以进行训练
 batch_size = 16
 data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
@@ -131,15 +131,15 @@ for batch in data_loader:
     # model.forward(batch)
 ```
 
-## Stream a dataset (no downloads)
+## 流式加载数据集（无需下载）
 
-Use `StreamingLeRobotDataset` to iterate directly from the Hub without local copies. This allows to stream large datasets without the need to downloading them onto disk or loading them onto memory, and is a key feature of the new dataset format.
+使用 `StreamingLeRobotDataset` 直接从 Hub 迭代数据，无需本地副本。这使得你可以流式加载大型数据集而无需下载到磁盘或加载到内存，这是新数据集格式的关键特性。
 
 ```python
 from lerobot.datasets import StreamingLeRobotDataset
 
 repo_id = "yaak-ai/L2D-v3"
-dataset = StreamingLeRobotDataset(repo_id)  # streams directly from the Hub
+dataset = StreamingLeRobotDataset(repo_id)  # 直接从 Hub 流式加载
 ```
 
 <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
@@ -150,32 +150,32 @@ dataset = StreamingLeRobotDataset(repo_id)  # streams directly from the Hub
       width="520"
     />
     <figcaption style="font-size:0.9em; color:#666;">
-      Stream directly from the Hub for on‑the‑fly training.
+      直接从 Hub 流式加载，实现即时训练。
     </figcaption>
   </figure>
 </div>
 
-## Image transforms
+## 图像变换
 
-Image transforms are data augmentations applied to camera frames during training to improve model robustness and generalization. LeRobot supports various transforms including brightness, contrast, saturation, hue, and sharpness adjustments.
+图像变换是在训练期间应用于摄像头帧的数据增强技术，旨在提高模型的鲁棒性和泛化能力。LeRobot 支持多种变换，包括亮度、对比度、饱和度、色调和锐度调整。
 
-### Using transforms during dataset creation/recording
+### 在数据集创建/录制期间使用变换
 
-Currently, transforms are applied during **training time only**, not during recording. When you create or record a dataset, the raw images are stored without transforms. This allows you to experiment with different augmentations later without re-recording data.
+目前，变换仅在**训练时**应用，而非录制时。当你创建或录制数据集时，原始图像会无变换地存储。这样你可以在之后尝试不同的数据增强方法，而无需重新录制数据。
 
-### Adding transforms to existing datasets (API)
+### 为现有数据集添加变换（API）
 
-Use the `image_transforms` parameter when loading a dataset for training:
+在加载数据集进行训练时使用 `image_transforms` 参数：
 
 ```python
 from lerobot.datasets import LeRobotDataset
 from lerobot.transforms import ImageTransforms, ImageTransformsConfig, ImageTransformConfig
 
-# Option 1: Use default transform configuration (disabled by default)
+# 选项 1：使用默认变换配置（默认关闭）
 transforms_config = ImageTransformsConfig(
-    enable=True,  # Enable transforms
-    max_num_transforms=3,  # Apply up to 3 transforms per frame
-    random_order=False,  # Apply in standard order
+    enable=True,  # 启用变换
+    max_num_transforms=3,  # 每帧最多应用 3 个变换
+    random_order=False,  # 按标准顺序应用
 )
 transforms = ImageTransforms(transforms_config)
 
@@ -184,7 +184,7 @@ dataset = LeRobotDataset(
     image_transforms=transforms
 )
 
-# Option 2: Create custom transform configuration
+# 选项 2：创建自定义变换配置
 custom_transforms_config = ImageTransformsConfig(
     enable=True,
     max_num_transforms=2,
@@ -193,15 +193,15 @@ custom_transforms_config = ImageTransformsConfig(
         "brightness": ImageTransformConfig(
             weight=1.0,
             type="ColorJitter",
-            kwargs={"brightness": (0.7, 1.3)}  # Adjust brightness range
+            kwargs={"brightness": (0.7, 1.3)}  # 调整亮度范围
         ),
         "contrast": ImageTransformConfig(
-            weight=2.0,  # Higher weight = more likely to be selected
+            weight=2.0,  # 权重越高，被选中的概率越大
             type="ColorJitter",
             kwargs={"contrast": (0.8, 1.2)}
         ),
         "sharpness": ImageTransformConfig(
-            weight=0.5,  # Lower weight = less likely to be selected
+            weight=0.5,  # 权重越低，被选中的概率越小
             type="SharpnessJitter",
             kwargs={"sharpness": (0.3, 2.0)}
         ),
@@ -213,7 +213,7 @@ dataset = LeRobotDataset(
     image_transforms=ImageTransforms(custom_transforms_config)
 )
 
-# Option 3: Use pure torchvision transforms
+# 选项 3：使用纯 torchvision 变换
 from torchvision.transforms import v2
 
 torchvision_transforms = v2.Compose([
@@ -227,27 +227,27 @@ dataset = LeRobotDataset(
 )
 ```
 
-### Available transform types
+### 可用的变换类型
 
-LeRobot provides several transform types:
+LeRobot 提供了几种变换类型：
 
-- **`ColorJitter`**: Adjusts brightness, contrast, saturation, and hue
-- **`SharpnessJitter`**: Randomly adjusts image sharpness
-- **`Identity`**: No transformation (useful for testing)
+- **`ColorJitter`**：调整亮度、对比度、饱和度和色调
+- **`SharpnessJitter`**：随机调整图像锐度
+- **`Identity`**：不做任何变换（用于测试）
 
-You can also use any `torchvision.transforms.v2` transform by passing it directly to the `image_transforms` parameter.
+你也可以直接使用任何 `torchvision.transforms.v2` 变换，将其传递给 `image_transforms` 参数。
 
-### Configuration options
+### 配置选项
 
-- **`enable`**: Enable/disable transforms (default: `False`)
-- **`max_num_transforms`**: Maximum number of transforms applied per frame (default: `3`)
-- **`random_order`**: Apply transforms in random order vs. standard order (default: `False`)
-- **`weight`**: Sampling probability for each transform (higher = more likely, if sum of weights is not 1, they will be normalized)
-- **`kwargs`**: Transform-specific parameters (e.g., brightness range)
+- **`enable`**：启用/禁用变换（默认：`False`）
+- **`max_num_transforms`**：每帧应用的最大变换数量（默认：`3`）
+- **`random_order`**：以随机顺序还是标准顺序应用变换（默认：`False`）
+- **`weight`**：每个变换的采样概率（值越大越容易被选中，如果权重之和不为 1，它们将被归一化）
+- **`kwargs`**：变换特定参数（例如亮度范围）
 
-### Visualizing transforms
+### 可视化变换
 
-Use the visualization script to preview how transforms affect your data:
+使用可视化脚本预览变换对数据的影响：
 
 ```bash
 lerobot-imgtransform-viz \
@@ -256,77 +256,77 @@ lerobot-imgtransform-viz \
   --n-examples=5
 ```
 
-This saves example images showing the effect of each transform, helping you tune parameters.
+这将保存展示每个变换效果的示例图像，帮助你调整参数。
 
-### Best practices
+### 最佳实践
 
-- **Start conservative**: Begin with small ranges (e.g., brightness 0.9-1.1) and increase gradually
-- **Test first**: Use the visualization script to ensure transforms look reasonable
-- **Monitor training**: Strong augmentations can hurt performance if too aggressive
-- **Match your domain**: If your robot operates in varying lighting, use brightness/contrast transforms
-- **Combine wisely**: Using too many transforms simultaneously can make training unstable
+- **保守起步**：从小范围开始（例如亮度 0.9-1.1），逐渐增大
+- **先测试**：使用可视化脚本确保变换看起来合理
+- **监控训练**：过于激进的数据增强可能会影响性能
+- **匹配场景**：如果机器人在变化的光照条件下运行，使用亮度/对比度变换
+- **合理组合**：同时使用过多变换可能导致训练不稳定
 
-## Migrate `v2.1` → `v3.0`
+## 从 `v2.1` 迁移到 `v3.0`
 
-A converter aggregates per‑episode files into larger shards and writes episode offsets/metadata. Convert your dataset using the instructions below.
+转换器将基于片段的小文件聚合为更大的分片，并写入片段偏移量/元数据。按照以下说明转换数据集。
 
 ```bash
-# Pre-release build with v3 support:
+# 支持 v3 的预发布版本：
 pip install "https://github.com/huggingface/lerobot/archive/33cad37054c2b594ceba57463e8f11ee374fa93c.zip"
 
-# Convert an existing v2.1 dataset hosted on the Hub:
+# 转换托管在 Hub 上的现有 v2.1 数据集：
 python -m lerobot.scripts.convert_dataset_v21_to_v30 --repo-id=<HF_USER/DATASET_ID>
 ```
 
-**What it does**
+**操作说明**
 
-- Aggregates parquet files: `episode-0000.parquet`, `episode-0001.parquet`, … → **`file-0000.parquet`**, …
-- Aggregates mp4 files: `episode-0000.mp4`, `episode-0001.mp4`, … → **`file-0000.mp4`**, …
-- Updates `meta/episodes/*` (chunked Parquet) with per‑episode lengths, tasks, and byte/frame offsets.
+- 聚合 parquet 文件：`episode-0000.parquet`, `episode-0001.parquet`, … → **`file-0000.parquet`**, …
+- 聚合 mp4 文件：`episode-0000.mp4`, `episode-0001.mp4`, … → **`file-0000.mp4`**, …
+- 更新 `meta/episodes/*`（分块 Parquet），添加每个片段的长度、任务和字节/帧偏移量。
 
-## Common Issues
+## 常见问题
 
-### Always call `finalize()` before pushing
+### 推送前务必调用 `finalize()`
 
-When creating or recording datasets, you **must** call `dataset.finalize()` to properly close parquet writers. See the [PR #1903](https://github.com/huggingface/lerobot/pull/1903) for more details.
+创建或录制数据集时，你**必须**调用 `dataset.finalize()` 来正确关闭 parquet 写入器。详情请参见 [PR #1903](https://github.com/huggingface/lerobot/pull/1903)。
 
 ```python
 from lerobot.datasets import LeRobotDataset
 
-# Create dataset and record episodes
+# 创建数据集并录制片段
 dataset = LeRobotDataset.create(...)
 
 for episode in range(num_episodes):
-    # Record frames
+    # 录制帧
     for frame in episode_data:
         dataset.add_frame(frame)
     dataset.save_episode()
 
-# Call finalize() when done recording and before push_to_hub()
-dataset.finalize()  # Closes parquet writers, writes metadata footers
+# 录制完成且在 push_to_hub() 之前调用 finalize()
+dataset.finalize()  # 关闭 parquet 写入器，写入元数据页脚
 dataset.push_to_hub()
 ```
 
-**Why is this necessary?**
+**为什么这是必要的？**
 
-Dataset v3.0 uses incremental parquet writing with buffered metadata for efficiency. The `finalize()` method:
+数据集 v3.0 使用增量 parquet 写入和缓冲元数据以提高效率。`finalize()` 方法：
 
-- Flushes any buffered episode metadata to disk
-- Closes parquet writers to write footer metadata, otherwise the parquet files will be corrupt
-- Ensures the dataset is valid for loading
+- 将所有缓冲的片段元数据刷新到磁盘
+- 关闭 parquet 写入器以写入页脚元数据，否则 parquet 文件将损坏
+- 确保数据集可以正确加载
 
-Without calling `finalize()`, your parquet files will be incomplete and the dataset won't load properly.
+如果不调用 `finalize()`，你的 parquet 文件将不完整，数据集也无法正常加载。
 
-## Other formats and implementations
+## 其他格式和实现
 
 ### Lance
 
-Lance is a useful format for multimodal AI datasets, especially for large-scale training requiring high performance IO and random access.
+Lance 是一种适用于多模态 AI 数据集的有用格式，尤其适合需要高性能 IO 和随机访问的大规模训练。
 
-The `lerobot-lancedb` package implements `LeRobotLanceDataset` (for JPEG images) and `LeRobotLanceVideoDataset` (for mp4 videos).
-Those two storage layouts both subclass LeRobotDataset and can provide data loading speed ups.
+`lerobot-lancedb` 包实现了 `LeRobotLanceDataset`（用于 JPEG 图像）和 `LeRobotLanceVideoDataset`（用于 mp4 视频）。
+这两种存储布局都继承自 `LeRobotDataset`，可以提供数据加载加速。
 
-`LeRobotLanceDataset` is a drop-in replacement for `LeRobotDataset`:
+`LeRobotLanceDataset` 是 `LeRobotDataset` 的直接替代品：
 
 ```python
 from lerobot.datasets import LeRobotDatasetMetadata
@@ -334,21 +334,21 @@ from lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
 from lerobot_lancedb import LeRobotLanceDataset, LeRobotLanceVideoDataset
 
 cfg = DiffusionConfig(...)
-meta = LeRobotDatasetMetadata(root=local_dataset_path)  # or use repo_id=... to load metadata from the Hub
+meta = LeRobotDatasetMetadata(root=local_dataset_path)  # 或使用 repo_id=... 从 Hub 加载元数据
 delta_timestamps = {...}
 
-# Use LeRobotLanceDataset for image datasets
+# 对图像数据集使用 LeRobotLanceDataset
 dataset = LeRobotLanceDataset(
-    root=local_dataset_path,                            # or use repo_id=... to stream from the Hub
+    root=local_dataset_path,                            # 或使用 repo_id=... 从 Hub 流式加载
     delta_timestamps=delta_timestamps,
     return_uint8=True,
 )
-# Or use LeRobotLanceVideoDataset for video datasets:
+# 或对视频数据集使用 LeRobotLanceVideoDataset：
 dataset = LeRobotLanceVideoDataset(
-    root=local_dataset_path,                            # or use repo_id=... to stream from the Hub
+    root=local_dataset_path,                            # 或使用 repo_id=... 从 Hub 流式加载
     delta_timestamps=delta_timestamps,
     return_uint8=True,
 )
 ```
 
-Join the discussion on [Github](https://github.com/huggingface/lerobot/issues/3608) and explore the `lerobot-lancedb` documentation [here](https://lancedb.github.io/lerobot-lancedb/).
+在 [GitHub](https://github.com/huggingface/lerobot/issues/3608) 上参与讨论，并[在此处](https://lancedb.github.io/lerobot-lancedb/)查阅 `lerobot-lancedb` 文档。

@@ -1,300 +1,206 @@
-# Annotation Pipeline
+# 标注流水线（Annotation Pipeline）
 
-`lerobot-annotate` watches each episode's video with a vision-language
-model (VLM) and writes natural-language annotations back into your
-dataset. It fills the two language columns from the
-[Language Columns and Recipes](./language_and_recipes) page —
-`language_persistent` and `language_events` — straight into
-`data/chunk-*/file-*.parquet`.
+`lerobot-annotate` 使用视觉语言模型（VLM）观看每个 episode 的视频，并将自然语言标注写回你的数据集中。它填充[语言列与配方](./language_and_recipes)页面中介绍的两个语言列——`language_persistent` 和 `language_events`——直接写入 `data/chunk-*/file-*.parquet`。
 
-In short: point it at a LeRobot dataset, and it adds subtasks, plans,
-memory, interjections, speech, and visual Q&A that a policy can be
-trained on.
+简而言之：指向一个 LeRobot 数据集，它就会添加子任务、计划、记忆、插话、语音和视觉问答内容，供策略训练使用。
 
-## How it fits together
+## 整体架构
 
 ```text
-  your dataset                  lerobot-annotate
+  你的数据集                  lerobot-annotate
   (LeRobot v3.1)
         │
         ▼
   ┌─────────────────────────────────────────────────────┐
-  │                    read episodes                     │
+  │                    读取 episodes                      │
   └──────────────────────────┬──────────────────────────┘
                              │
         ┌────────────────────┼────────────────────┐
         ▼                    ▼                     ▼
-  ┌──────────┐      ┌───────────────┐        ┌──────────┐       one shared Qwen-VL
-  │   plan   │      │ interjections │        │   vqa    │  ◀──   server (vLLM, OpenAI
-  └────┬─────┘      └───────┬───────┘        └────┬─────┘        API) drives all three
+  ┌──────────┐      ┌───────────────┐        ┌──────────┐       共享的 Qwen-VL
+  │  plan    │      │ interjections │        │   vqa    │  ◀──  服务器（vLLM、OpenAI
+  └────┬─────┘      └───────┬───────┘        └────┬─────┘       API）驱动所有三个模块
        └────────────────────┼─────────────────────┘
-                            │   each module stages raw JSONL
-                            ▼   into .annotate_staging/
+                            │   每个模块将原始 JSONL 暂存到
+                            ▼   .annotate_staging/ 目录
                   ┌─────────────────┐
-                  │    validator    │  ◀──  checks everything
+                  │    验证器        │  ◀──  检查所有内容
                   └────────┬────────┘
                            ▼
                   ┌─────────────────┐
-                  │     writer      │
+                  │    写入器        │
                   └────────┬────────┘
                            ▼
               data/chunk-*/file-*.parquet
-              (+ meta/info.json tools)
+              (+ meta/info.json 工具)
 ```
 
-Three modules (`plan`, `interjections`, `vqa`) all talk to **one** shared
-VLM. Each module stages its output to disk, a validator checks it, and a
-single writer rewrites the dataset shards in place.
+三个模块（`plan`、`interjections`、`vqa`）都与**一个**共享的 VLM 通信。每个模块将其输出暂存到磁盘，验证器检查无误后，一个写入器就地重写数据集的分片（shard）。
 
-## What the pipeline produces
+## 流水线的输出内容
 
-Each module emits a few kinds of annotation ("styles"), routed to one of
-the two language columns:
+每个模块产生若干种标注（称为"样式"），路由到两个语言列之一：
 
-| Style / atom                                | Column                | Module          |
-| ------------------------------------------- | --------------------- | --------------- |
-| `subtask` (Pi0.7-style "how, not what")     | `language_persistent` | `plan`          |
-| `plan` (initial + refresh on interjection)  | `language_persistent` | `plan`          |
-| `memory` (MEM-style compression)            | `language_persistent` | `plan`          |
-| `task_aug` (rephrasings of the task)        | `language_persistent` | `plan`          |
-| `interjection`                              | `language_events`     | `interjections` |
-| speech tool-call atom (`style=null`, `say`) | `language_events`     | `interjections` |
-| `vqa` (user / assistant pair)               | `language_events`     | `vqa`           |
+| 样式 / 原子                               | 列                   | 模块             |
+| ----------------------------------------- | -------------------- | ---------------- |
+| `subtask`（Pi0.7 风格的"如何做，而非做什么"）| `language_persistent` | `plan`           |
+| `plan`（初始 + 插话时刷新）                | `language_persistent` | `plan`           |
+| `memory`（MEM 风格的压缩）                 | `language_persistent` | `plan`           |
+| `task_aug`（任务描述的改写）                | `language_persistent` | `plan`           |
+| `interjection`                            | `language_events`     | `interjections`  |
+| 语音工具调用原子（`style=null`, `say`）    | `language_events`     | `interjections`  |
+| `vqa`（用户/助手配对）                      | `language_events`     | `vqa`            |
 
-### How subtasks are generated
+### 子任务的生成方式
 
-The `plan` module doesn't ask the VLM for subtasks in one shot. Instead
-it uses a two-step **describe → segment** flow:
+`plan` 模块并非一次性要求 VLM 生成子任务。它采用两步走的方式：**描述 → 分段**：
 
-1. **Describe** — the VLM narrates only what it actually sees in the
-   chosen camera (no guessing about the task).
-2. **Segment** — that description is fed back in, and the VLM splits the
-   episode into consecutive atomic subtasks.
+1. **描述（Describe）** — VLM 仅描述它在所选相机中实际看到的内容（不对任务进行猜测）。
+2. **分段（Segment）** - 将该描述重新输入，VLM 将 episode 拆分为连续的原子子任务。
 
-Both passes see the episode as **timestamped contact sheets** — frames
-sampled at `frames_per_second` (0.5s by default) and packed into JPEG
-grids with each frame's time burned into its corner, so the VLM cites
-exact boundary times directly. This is far cheaper in vision tokens than
-one image per frame, so the sampling can stay dense; episodes longer than
-`max_frames_per_prompt` are split into windows at the same density and
-merged. Both prompts also carry a causal **event-boundary** definition (a
-new event starts when an object becomes held / is released / reaches a new
-location / a lid changes state / contents move) to sharpen where cuts land.
+两个阶段都看到的是**带时间戳的缩略图（contact sheet）**——帧按 `frames_per_second`（默认 0.5 秒）采样，打包成 JPEG 网格，每帧的时间戳烧录在角落，这样 VLM 可以直接引用精确的边界时间。这比每帧一张图片在视觉 token 上的开销小得多，因此采样可以保持密集；超过 `max_frames_per_prompt` 的 episode 会以相同密度拆分为窗口并合并。两个提示都包含一个因果性的**事件边界**定义（当一个物体被拿起/放下、到达新位置、盖子状态变化或内容移动时，新事件开始），以使分割位置的判断更加精确。
 
-Optionally, a third **seeded-relabel** pass (`--plan.subtask_seeded_relabel`)
-revisits each span with its previous/current/next segment contact sheets and
-minimally corrects the label, using the first label as a prior — it keeps the
-boundaries fixed and only sharpens wording, at the cost of one extra call per
-subtask.
+可选地，第三轮**种子引导重新标注**（`--plan.subtask_seeded_relabel`）使用前一/当前/下一段的缩略图重新检查每个跨度，并对标签进行最小修正，以第一个标签为先验——它保持边界不变，仅优化措辞，代价是每个子任务多一次调用。
 
-The resulting spans are then stitched into a gap-free, full-episode
-cover, so **every frame has exactly one active subtask**. See
-[`run_hf_job.py`](https://github.com/huggingface/lerobot/blob/main/examples/annotations/run_hf_job.py)
-for the production settings (single camera, timestamped contact sheets,
-auto-windowed subtask generation).
+生成的片段随后拼接成一个无间隙、覆盖全 episode 的标注，因此**每个帧恰好有一个活跃的子任务**。参见 [`run_hf_job.py`](https://github.com/huggingface/lerobot/blob/main/examples/annotations/run_hf_job.py) 了解生产设置（单相机、带时间戳的缩略图、自动窗口化的子任务生成）。
 
-### Tools
+### 工具
 
-The writer does **not** add a `tools` column to the parquet. The tool
-catalog lives in `meta/info.json["tools"]` instead (see [Tools](./tools)).
-After every run, the pipeline makes sure the canonical `say` schema is in
-that list, keeping any tools you declared beforehand.
+写入器**不会**在 parquet 中添加 `tools` 列。工具目录位于 `meta/info.json["tools"]`（参见[工具](./tools)）。每次运行后，流水线确保标准的 `say` 模式（schema）在该列表中存在，同时保留你之前声明的任何工具。
 
-Want to add your own tool? Edit `meta/info.json["tools"]` directly — the
-pipeline preserves whatever is already there. That makes the tool visible
-to the chat template, so the model can learn to _generate_ the call. The
-runtime layer that actually _executes_ a generated call (the `Tool`
-protocol / `TOOL_REGISTRY` under `src/lerobot/tools/`) is not part of
-this PR — the [Tools](./tools) doc marks those pieces as
-not-yet-implemented.
+想添加自己的工具？直接编辑 `meta/info.json["tools"]`——流水线会保留已有的所有内容。这使工具对聊天模板（chat template）可见，因此模型可以学会生成该调用。实际执行生成调用的运行时层（`Tool` 协议 / `src/lerobot/tools/` 下的 `TOOL_REGISTRY`）不属于本文档范围——[工具](./tools)文档将这些部分标记为尚未实现。
 
-## Running on Hugging Face Jobs
+## 在 Hugging Face Jobs 上运行
 
-Annotation runs on [Hugging Face Jobs](https://huggingface.co/docs/hub/en/jobs).
-The repo ships a launcher script you copy and tweak for your dataset:
+标注在 [Hugging Face Jobs](https://huggingface.co/docs/hub/en/jobs) 上运行。仓库提供了一个启动脚本，你可以复制并根据数据集进行调整：
 
 ```bash
 HF_TOKEN=hf_... uv run python examples/annotations/run_hf_job.py
 ```
 
 [`run_hf_job.py`](https://github.com/huggingface/lerobot/blob/main/examples/annotations/run_hf_job.py)
-starts a single-GPU `h200` job (bump it to `h200x4` for big datasets)
-that:
+启动一个单 GPU `h200` 任务（大数据集可升级为 `h200x4`），该任务：
 
-1. installs `lerobot` (from `main`) plus the annotation extras,
-2. boots one vLLM server per GPU (using the `vllm/vllm-openai` image) and
-   drives it over the OpenAI-compatible API,
-3. runs the `plan` / `interjections` / `vqa` modules across the dataset
-   with `lerobot-annotate`,
-4. with `--push_to_hub=true`, uploads the result to `--new_repo_id` (or
-   back to `--repo_id` in place if you leave that unset).
+1. 安装 `lerobot`（来自 `main` 分支）及标注附加依赖，
+2. 每个 GPU 启动一个 vLLM 服务器（使用 `vllm/vllm-openai` 镜像），通过 OpenAI 兼容 API 驱动，
+3. 在数据集上使用 `lerobot-annotate` 运行 `plan` / `interjections` / `vqa` 模块，
+4. 如果使用了 `--push_to_hub=true`，则将结果上传到 `--new_repo_id`（如果未指定则上传回 `--repo_id`）。
 
-To use a different dataset, model, or hub repo, edit the `CMD` block in
-the script. Every flag there maps directly to a `lerobot-annotate` flag
-(run `lerobot-annotate --help` for the full list).
+要使用不同的数据集、模型或 Hub 仓库，请编辑脚本中的 `CMD` 块。那里的每个标志直接对应一个 `lerobot-annotate` 标志（运行 `lerobot-annotate --help` 查看完整列表）。
 
-## Key options
+## 关键选项
 
-These are the flags you'll reach for most often. Run
-`lerobot-annotate --help` for everything else; the defaults are tuned for
-short manipulation episodes.
+以下是你最常使用的标志。运行 `lerobot-annotate --help` 查看所有其他选项；默认值针对短操作 episodes 进行了调优。
 
-### Dataset in / out
+### 数据集输入/输出
 
-| Flag              | Default | What it does                                                            |
-| ----------------- | ------- | ----------------------------------------------------------------------- |
-| `--repo_id`       | —       | Hub dataset to annotate (downloaded if `--root` unset).                 |
-| `--root`          | —       | Annotate a local dataset directory instead.                             |
-| `--new_repo_id`   | —       | Push the result to a new repo (leaves the source repo untouched).       |
-| `--push_to_hub`   | `false` | Upload after annotating (to `--new_repo_id`, else back to `--repo_id`). |
-| `--only_episodes` | all     | Annotate just these episode indices (handy for a test run).             |
-| `--seed`          | `1729`  | Seeds the RNGs that pick interjection timestamps + VQA question types.  |
+| 标志                | 默认值   | 说明                                                                 |
+| ------------------- | ------- | -------------------------------------------------------------------- |
+| `--repo_id`         | —       | 要标注的 Hub 数据集（如果未设置 `--root` 则下载）。                    |
+| `--root`            | —       | 改为标注本地数据集目录。                                              |
+| `--new_repo_id`     | —       | 将结果推送到新仓库（保留源仓库不变）。                                  |
+| `--push_to_hub`     | `false` | 标注后上传（到 `--new_repo_id`，否则上传回 `--repo_id`）。              |
+| `--only_episodes`   | 全部    | 仅标注这些 episode 索引（便于测试运行）。                               |
+| `--seed`            | `1729`  | 为选择插话时间戳和 VQA 问题类型的随机数生成器提供种子。                  |
 
-### Which modules run
+### 运行哪些模块
 
-Every module is on by default and can be toggled independently (set to
-`false` to skip it, e.g. to iterate on one module at a time):
+所有模块默认启用，可独立开关（设为 `false` 可跳过，例如一次只迭代一个模块）：
 
-| Flag                      | Default | Turns off                           |
-| ------------------------- | ------- | ----------------------------------- |
-| `--plan.enabled`          | `true`  | subtasks + plan + memory + task_aug |
-| `--interjections.enabled` | `true`  | interjections + speech atoms        |
-| `--vqa.enabled`           | `true`  | the VQA pairs                       |
+| 标志                        | 默认值   | 关闭的内容                           |
+| --------------------------- | ------- | ----------------------------------- |
+| `--plan.enabled`            | `true`  | subtasks + plan + memory + task_aug |
+| `--interjections.enabled`   | `true`  | interjections + speech atoms        |
+| `--vqa.enabled`             | `true`  | VQA 配对                            |
 
-### The VLM (`--vlm.*`)
+### VLM（`--vlm.*`）
 
-| Flag                       | Default            | What it does                                                                         |
-| -------------------------- | ------------------ | ------------------------------------------------------------------------------------ |
-| `--vlm.model_id`           | `Qwen/Qwen3.6-27B` | The model to serve and prompt.                                                       |
-| `--vlm.camera_key`         | first `images.*`   | Which camera every prompt is grounded on.                                            |
-| `--vlm.serve_command`      | auto               | The exact `vllm serve …` command (set TP size, GPU memory, `--max-model-len` here).  |
-| `--vlm.parallel_servers`   | `1`                | Independent servers for round-robin routing (one per GPU).                           |
-| `--vlm.num_gpus`           | `0`                | GPUs per server (`0` = one each).                                                    |
-| `--vlm.client_concurrency` | `16`               | In-flight requests across all servers.                                               |
-| `--vlm.max_new_tokens`     | `512`              | Generation cap per call.                                                             |
-| `--vlm.temperature`        | `0.2`              | Sampling temperature.                                                                |
-| `--vlm.reasoning_effort`   | `null`             | Thinking-budget hint (`low`/`medium`/`high`) forwarded to OpenAI-compatible servers. |
+| 标志                          | 默认值               | 说明                                                                               |
+| --------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `--vlm.model_id`            | `Qwen/Qwen3.6-27B`  | 要提供和提示的模型。                                                                 |
+| `--vlm.camera_key`          | 第一个 `images.*`   | 每个提示基于哪个相机。                                                               |
+| `--vlm.serve_command`       | auto                | 确切的 `vllm serve …` 命令（在此设置 TP 大小、GPU 内存、`--max-model-len`）。         |
+| `--vlm.parallel_servers`    | `1`                 | 用于轮询路由的独立服务器（每个 GPU 一个）。                                            |
+| `--vlm.num_gpus`            | `0`                 | 每台服务器的 GPU 数（`0` = 各一个）。                                                  |
+| `--vlm.client_concurrency`  | `16`                | 所有服务器上的并发请求数。                                                            |
+| `--vlm.max_new_tokens`      | `512`               | 每次调用的生成上限。                                                                 |
+| `--vlm.temperature`         | `0.2`               | 采样温度。                                                                          |
+| `--vlm.reasoning_effort`    | `null`              | 思考预算提示（`low`/`medium`/`high`），转发给兼容 OpenAI 的服务器。                    |
 
-### Subtasks / plan / memory (`--plan.*`)
+### 子任务 / 计划 / 记忆（`--plan.*`）
 
-| Flag                            | Default    | What it does                                                                                                                 |
-| ------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `--plan.frames_per_second`      | `2.0`      | Frame sampling rate for the contact sheets (`2.0` = one frame every 0.5s).                                                   |
-| `--plan.max_frames_per_prompt`  | `60`       | Frame budget per VLM call. Episodes whose sampling exceeds this are auto-windowed at the same density, then stitched.        |
-| `--plan.contact_sheet_columns`  | `5`        | Columns per contact-sheet grid (`contact_sheet_frames_per_sheet` tiles, time row-major).                                     |
-| `--plan.plan_max_steps`         | `8`        | Upper bound on subtasks per episode.                                                                                         |
-| `--plan.subtask_describe_first` | `true`     | Run the describe→segment grounding pass (best subtask quality; +1 call/episode).                                             |
-| `--plan.subtask_seeded_relabel` | `false`    | Second pass: re-label each subtask from its prev/current/next contact sheets, seeded with the first label (+1 call/subtask). |
-| `--plan.subtask_relabel_frames` | `5`        | Frames sampled uniformly per segment sheet in the relabel pass (only used when `subtask_seeded_relabel=true`).               |
-| `--plan.emit_plan`              | `true`     | Emit the numbered `plan` rows (`false` = subtasks + memory only).                                                            |
-| `--plan.emit_memory`            | `true`     | Emit the `memory` rows (`false` = subtasks + plan only); symmetric to `emit_plan`.                                           |
-| `--plan.n_task_rephrasings`     | `10`       | How many `task_aug` rephrasings to emit (`0` disables).                                                                      |
-| `--plan.derive_task_from_video` | `if_short` | Use the dataset task as-is (`off`), only when it's missing/short (`if_short`), or always re-derive from video (`always`).    |
+| 标志                                | 默认值        | 说明                                                                                                   |
+| ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
+| `--plan.frames_per_second`          | `2.0`        | 缩略图的帧采样率（`2.0` = 每 0.5 秒一帧）。                                                              |
+| `--plan.max_frames_per_prompt`      | `60`         | 每次 VLM 调用的帧预算。采样超过此值的 episode 以相同密度自动拆分为窗口后拼接。                              |
+| `--plan.contact_sheet_columns`      | `5`          | 缩略图网格的列数（每张缩略图 `contact_sheet_frames_per_sheet` 个瓦片，按行主序排列时间）。                    |
+| `--plan.plan_max_steps`             | `8`          | 每个 episode 的子任务数量上限。                                                                          |
+| `--plan.subtask_describe_first`     | `true`       | 运行描述→分段的基础定位流程（最佳子任务质量；+1 次调用/episode）。                                        |
+| `--plan.subtask_seeded_relabel`     | `false`      | 第二轮：从每个子任务的前一/当前/下一段缩略图重新标注，以第一轮标签为种子（+1 次调用/子任务）。                |
+| `--plan.subtask_relabel_frames`     | `5`          | 在重新标注阶段每段缩略图中均匀采样的帧数（仅在 `subtask_seeded_relabel=true` 时使用）。                      |
+| `--plan.emit_plan`                  | `true`       | 输出带编号的 `plan` 行（`false` = 仅子任务 + 记忆）。                                                     |
+| `--plan.emit_memory`                | `true`       | 输出 `memory` 行（`false` = 仅子任务 + 计划）；与 `emit_plan` 对称。                                      |
+| `--plan.n_task_rephrasings`         | `10`         | 输出的 `task_aug` 改写数量（`0` 禁用）。                                                                 |
+| `--plan.derive_task_from_video`     | `if_short`   | 按原样使用数据集任务（`off`）、仅在任务缺失/过短时重新推导（`if_short`）、或始终从视频重新推导（`always`）。 |
 
-### Interjections + VQA
+### 插话 + VQA
 
-| Flag                                            | Default | What it does                                               |
-| ----------------------------------------------- | ------- | ---------------------------------------------------------- |
-| `--interjections.max_interjections_per_episode` | `3`     | Cap on interjection/speech pairs per episode.              |
-| `--vqa.vqa_emission_hz`                         | `1.0`   | How often VQA pairs are emitted.                           |
-| `--vqa.restrict_to_default_camera`              | `false` | Ground VQA only on `--vlm.camera_key` (else every camera). |
-| `--executor.episode_parallelism`                | `16`    | Episodes processed concurrently within each phase.         |
+| 标志                                              | 默认值   | 说明                             |
+| ------------------------------------------------- | ------- | -------------------------------- |
+| `--interjections.max_interjections_per_episode`   | `3`     | 每个 episode 的插话/语音配对上限。 |
+| `--vqa.vqa_emission_hz`                           | `1.0`   | VQA 对输出的频率。                |
+| `--vqa.restrict_to_default_camera`                | `false` | 仅基于 `--vlm.camera_key` 进行 VQA 基础定位（否则在所有相机上执行）。 |
+| `--executor.episode_parallelism`                  | `16`    | 每个阶段内并行处理的 episode 数。   |
 
-## Contributing new modules
+## 贡献新模块
 
-The pipeline is built to grow, and **contributions are very welcome** —
-a brand-new module (say, trajectory traces or affordances), a new prompt
-template, a smarter grounding flow, or quality fixes to the existing
-`plan` / `interjections` / `vqa` modules.
+该流水线设计为可扩展的，**非常欢迎贡献**——无论是全新的模块（例如轨迹跟踪或 affordance）、新的提示模板、更智能的基础定位流程，还是对现有 `plan` / `interjections` / `vqa` 模块的质量修复。
 
-Every module lives under
-`src/lerobot/annotations/steerable_pipeline/modules/`, shares the VLM
-client and the keyframe cache, writes its raw output to the staging
-tree, and plugs into the executor as its own phase. Got an idea? Open an
-issue or PR on [the repo](https://github.com/huggingface/lerobot).
+每个模块位于 `src/lerobot/annotations/steerable_pipeline/modules/` 下，共享 VLM 客户端和关键帧缓存，将原始输出写入暂存树，并作为自己的阶段插入执行器。有想法？请在[仓库](https://github.com/huggingface/lerobot)上提交 issue 或 PR。
 
-## How recipes consume the output
+## 配方（recipe）如何使用输出
 
-The annotations are meant to be read by recipes (see
-[Language Columns and Recipes](./language_and_recipes)). Typically:
+标注数据供配方使用（参见[语言列与配方](./language_and_recipes)）。通常：
 
-- low-level / high-level / memory-update branches read
-  `subtask` / `plan` / `memory` from `language_persistent`.
-- an interjection-response branch reads `interjection` events plus the
-  paired speech atom (merged into one assistant turn via `tool_calls_from`)
-  and the matching `plan` refresh at the same timestamp.
-- a VQA branch reads the `(vqa, user)` and `(vqa, assistant)` pairs from
-  `language_events`.
+- 低级/高级/记忆更新分支从 `language_persistent` 读取 `subtask` / `plan` / `memory`。
+- 插话响应分支读取 `interjection` 事件及其配对的语音原子（通过 `tool_calls_from` 合并为一个助手轮次）以及在相同时间戳对应的 `plan` 刷新。
+- VQA 分支从 `language_events` 读取 `(vqa, user)` 和 `(vqa, assistant)` 配对。
 
-## Why state and events are split
+## 为什么将状态和事件分开
 
-Two ideas shape the design:
+设计基于两个理念：
 
-1. **Persistent state vs. exact events.** Persistent rows (`subtask`,
-   `plan`, `memory`) apply to the whole episode and answer "what's true
-   right now?". Event rows (`interjection`, `vqa`, speech) appear only on
-   the one frame whose timestamp matches. Timestamps are copied straight
-   from the source parquet — never recomputed in floating point.
-2. **One VLM pass.** All three modules share a single VLM client (the
-   OpenAI-compatible client talking to the job's vLLM server), so you pay
-   for one model load per dataset, not three.
+1. **持久状态 vs. 精确事件。** 持久行（`subtask`、`plan`、`memory`）适用于整个 episode，回答"现在的情况是什么？"。事件行（`interjection`、`vqa`、speech）仅出现在时间戳匹配的帧上。时间戳直接从源 parquet 复制——绝不通过浮点数重新计算。
+2. **一次 VLM 推理。** 所有三个模块共享一个 VLM 客户端（与任务 vLLM 服务器通信的 OpenAI 兼容客户端），因此你为每个数据集只支付一次模型加载成本，而不是三次。
 
-## Re-running a single module
+## 重新运行单个模块
 
-Each module stages its raw output to
-`<root>/.annotate_staging/episode_{N:06d}/<module>.jsonl`. This makes
-prompt iteration cheap: re-running one module overwrites only its own
-JSONL, then the writer recomposes the final parquet. Disable modules you
-don't want with `--plan.enabled=false` (and likewise
-`--interjections.enabled` / `--vqa.enabled`) to test one at a time.
+每个模块将其原始输出暂存到 `<root>/.annotate_staging/episode_{N:06d}/<module>.jsonl`。这使得提示迭代非常高效：重新运行一个模块只会覆盖其自身的 JSONL，然后写入器重新组合最终的 parquet。使用 `--plan.enabled=false`（以及相应的 `--interjections.enabled` / `--vqa.enabled`）禁用在测试时不需要的模块，一次只测试一个。
 
-## What the validator checks
+## 验证器的检查内容
 
-Before the writer runs, `StagingValidator` confirms:
+在写入器运行之前，`StagingValidator` 确认：
 
-- every event row lands exactly on a real frame timestamp;
-- no speech / interjection pairs are left orphaned;
-- `plan` is refreshed at every interjection timestamp;
-- `memory` rows fall on subtask boundaries (a warning, not an error);
-- each VQA assistant `content` is valid JSON in one of the
-  bbox / keypoint / count / attribute / spatial shapes;
-- every row goes to the column chosen by `column_for_style(style)`.
+- 每个事件行恰好落在真实帧时间戳上；
+- 没有语音/插话配对被孤立；
+- 在每个插话时间戳上刷新了 `plan`；
+- `memory` 行落在子任务边界上（警告，而非错误）；
+- 每个 VQA 助手的 `content` 是有效的 JSON，属于 bbox / keypoint / count / attribute / spatial 形状之一；
+- 每行都转到 `column_for_style(style)` 选择的列。
 
-Any error aborts the writer. Pass `--skip_validation=true` to override
-while debugging.
+任何错误都会中止写入器。在调试时传递 `--skip_validation=true` 以覆盖这些检查。
 
-## Where each module's ideas come from
+## 每个模块的思想来源
 
-- **`plan` — subtasks.** Hi Robot ([Shi 2025](https://arxiv.org/abs/2502.19417))
-  for atom granularity ("pick up one piece of lettuce", "place bowl to
-  box"); Pi0.7 ([Physical Intelligence 2025](https://pi.website/pi07))
-  for "how, not what" detail.
-- **`plan` — memory.** MEM ([Torne 2026](https://arxiv.org/abs/2603.03596)):
-  keep only the minimal relevant information — preserve outcomes, drop
-  specific attributes.
-- **`interjections`.** Hi Robot's scenario taxonomy: negative task,
-  situated correction, specific constraint, preference. Speech is a
-  tool-call-only atom
-  (`tool_calls=[{type:function, function:{name:"say", arguments:{text:...}}}]`).
-- **`vqa`.** ECoT ([Zawalski 2024](https://arxiv.org/abs/2407.08693)) for
-  grounded features (pixel bounding boxes `[x_min, y_min, x_max, y_max]`,
-  keypoints) and Steerable VLA Policies
-  ([Zhao 2025](https://arxiv.org/abs/2509.07626)) for multi-abstraction
-  grounding. Pi0.7 also grounds answers across abstraction levels.
+- **`plan` — subtasks。** Hi Robot（[Shi 2025](https://arxiv.org/abs/2502.19417)）提供了原子粒度（"拿起一片生菜"、"将碗放入盒子"）；Pi0.7（[Physical Intelligence 2025](https://pi.website/pi07)）提供了"如何做，而非做什么"的细节。
+- **`plan` — memory。** MEM（[Torne 2026](https://arxiv.org/abs/2603.03596)）：仅保留最小相关信息——保留结果，丢弃具体属性。
+- **`interjections`。** Hi Robot 的场景分类：负面任务、情境修正、特定约束、偏好。语音是仅含工具调用的原子（`tool_calls=[{type:function, function:{name:"say", arguments:{text:...}}}]`）。
+- **`vqa`。** ECoT（[Zawalski 2024](https://arxiv.org/abs/2407.08693)）提供了基础定位特征（像素边界框 `[x_min, y_min, x_max, y_max]`、关键点），Steerable VLA Policies（[Zhao 2025](https://arxiv.org/abs/2509.07626)）提供了多抽象层次的基础定位。Pi0.7 也跨抽象层次对答案进行基础定位。
 
-When improving a module, tweak its prompt template in
-`src/lerobot/annotations/steerable_pipeline/prompts/` rather than
-rewriting from scratch.
+改进模块时，建议调整其提示模板（位于 `src/lerobot/annotations/steerable_pipeline/prompts/`），而不是从头重写。
 
-## Roughly how much it costs
+## 大致成本估算
 
-Per episode, the pipeline makes about `max_steps` plan calls,
-`max_interjections_per_episode` interjection calls, and
-`vqa_emission_hz × episode_seconds` VQA calls. With the defaults (8
-subtasks, 1 interjection, 1 Hz × 3 pairs) on a 30-second episode, that's
-~50 VLM calls.
+每个 episode，流水线进行约 `max_steps` 次计划调用、`max_interjections_per_episode` 次插话调用和 `vqa_emission_hz × episode_seconds` 次 VQA 调用。以默认设置（8 个子任务、1 次插话、1 Hz × 3 对）在 30 秒的 episode 上，大约是 50 次 VLM 调用。
 
-Storage stays small: `language_persistent` is at most tens of KB per
-episode (parquet dictionary-encodes the one entry that repeats across
-frames), and `language_events` is empty on most frames — its size scales
-with the number of emissions, not `num_frames × num_emissions`.
+存储占用很小：`language_persistent` 每个 episode 最多几十 KB（parquet 对跨帧重复的一条条目进行字典编码），而 `language_events` 在大多数帧上为空——其大小随输出次数扩展，而非 `num_frames × num_emissions`。

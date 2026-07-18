@@ -1,88 +1,88 @@
-# Compute HW Guide for LeRobot Training
+# LeRobot 训练的计算硬件指南
 
-Rough sizing for training a LeRobot policy: how much VRAM each policy needs, what training time looks like, and where to run when local hardware isn't enough.
+训练 LeRobot 策略的粗略估算：每种策略需要多少显存、训练时间大概多长，以及本地硬件不足时可以在哪里运行。
 
-The numbers below are **indicative** — order-of-magnitude figures for picking hardware, not exact predictions. Throughput depends heavily on dataset I/O, image resolution, batch size, and number of GPUs.
+以下数据仅供参考——用于选择硬件的数量级估算，而非精确预测。吞吐量在很大程度上取决于数据集 I/O、图像分辨率、批次大小和 GPU 数量。
 
-## Memory by policy group
+## 按策略分组的内存需求
 
-Policies cluster by backbone size; the groupings below give a single VRAM envelope per group instead of repeating numbers per policy. Memory scales roughly linearly with batch size; AdamW (the LeRobot default) carries optimizer state that adds ~30–100% over a forward+backward pass alone.
+策略按骨干网络大小分组；以下分组为每组给出单一的显存范围，而非重复每种策略的数据。内存消耗大致与批次大小成线性关系；AdamW（LeRobot 默认优化器）携带优化器状态，仅在前向+反向传播的基础上额外增加约 30–100% 的开销。
 
-| Group      | Policies                                    | Peak VRAM (BS 8, AdamW) | Suitable starter GPUs             |
+| 分组 | 策略 | 峰值显存（BS 8, AdamW） | 合适的入门 GPU |
 | ---------- | ------------------------------------------- | ----------------------: | --------------------------------- |
-| Light BC   | `act`, `vqbet`, `tdmpc`                     |                  ~2–6GB | Laptop GPU (RTX 3060), L4, A10G   |
-| Diffusion  | `diffusion`, `multi_task_dit`               |                 ~8–14GB | RTX 4070+ / L4 / A10G             |
-| Small VLA  | `smolvla`                                   |                ~10–16GB | RTX 4080+ / L4 / A10G             |
-| Large VLA  | `pi0`, `pi0_fast`, `pi05`, `xvla`, `wall_x` |                ~24–40GB | A100 40 GB+ (24 GB tight at BS 1) |
-| Multimodal | `groot`, `eo1`                              |                ~24–40GB | A100 40 GB+                       |
-| RL         | `sac`                                       |             config-dep. | See [HIL-SERL guide](./hilserl)   |
+| 轻量 BC | `act`, `vqbet`, `tdmpc` | ~2–6GB | 笔记本 GPU（RTX 3060）, L4, A10G |
+| 扩散模型 | `diffusion`, `multi_task_dit` | ~8–14GB | RTX 4070+ / L4 / A10G |
+| 小 VLA | `smolvla` | ~10–16GB | RTX 4080+ / L4 / A10G |
+| 大 VLA | `pi0`, `pi0_fast`, `pi05`, `xvla`, `wall_x` | ~24–40GB | A100 40 GB+（24 GB 在 BS 1 时紧张） |
+| 多模态 | `groot`, `eo1` | ~24–40GB | A100 40 GB+ |
+| 强化学习 | `sac` | 取决于配置 | 参见 [HIL-SERL 指南](./hilserl) |
 
-Memory-bound? Drop the batch size (~linear), use gradient accumulation to recover effective batch, or for SmolVLA leave `freeze_vision_encoder=True`.
+如果内存受限，可以降低批次大小（近乎线性），使用梯度累积恢复有效批次大小，或者对于 SmolVLA 可以保持 `freeze_vision_encoder=True`。
 
-## Training time
+## 训练时间
 
-Robotics imitation learning typically converges in **5–10 epochs over the dataset**, not hundreds of thousands of raw steps. Once you know your epoch count, wall-clock is essentially:
+机器人模仿学习通常需要**在数据集上训练 5–10 个 epoch** 即可收敛，而非数十万原始步数。一旦确定了 epoch 数量，实际训练时间大约为：
 
 ```text
-total_frames    = sum of frames over all episodes      # 50 ep × 30 fps × 30 s ≈ 45,000
+total_frames    = 所有回合的总帧数                           # 50 回合 × 30 fps × 30 秒 ≈ 45,000
 steps_per_epoch = ceil(total_frames / (num_gpus × batch_size))
 total_steps     = epochs × steps_per_epoch
 wall_clock      ≈ total_steps × per_step_time
 ```
 
-Per-step time depends on the policy and the GPU. The numbers in the table below are anchors — pick the row closest to your setup and scale linearly with `total_steps` if you train longer or shorter.
+每步时间取决于策略和 GPU。下表中的数字是锚定值——请选择最接近您配置的行，如果训练时间更长或更短，则按 `total_steps` 线性缩放。
 
-### Common scenarios
+### 常见场景
 
-Indicative wall-clock for **5 epochs on a ~50-episode dataset (~45k frames at 30 fps × 30 s)**, default optimizer (AdamW), 640×480 images:
+**5 个 epoch，约 50 回合数据集（30 fps × 30 秒，约 45k 帧）**，默认优化器（AdamW），640×480 图像的指示性实际训练时间：
 
-| Setup                                | Policy         | Batch | Wall-clock |
+| 配置 | 策略 | 批次 | 实际时间 |
 | ------------------------------------ | -------------- | ----- | ---------: |
-| Single RTX 4090 / RTX 3090 (24 GB)   | `act`          | 8     |  ~30–60min |
-| Single RTX 4090 / RTX 3090 (24 GB)   | `diffusion`    | 8     |      ~2–4h |
-| Single L4 / A10G (24 GB)             | `act`          | 8     |      ~1–2h |
-| Single L4 / A10G (24 GB)             | `smolvla`      | 4     |      ~3–6h |
-| Single A100 40 GB                    | `smolvla`      | 16    |      ~1–2h |
-| Single A100 40 GB                    | `pi0` / `pi05` | 4     |      ~4–8h |
-| 4× H100 80 GB cluster (`accelerate`) | `diffusion`    | 32    |  ~30–60min |
-| 4× H100 80 GB cluster (`accelerate`) | `smolvla`      | 32    |      ~1–2h |
-| Apple Silicon M1/M2/M3 Max (MPS)     | `act`          | 4     |     ~6–14h |
+| 单张 RTX 4090 / RTX 3090（24 GB） | `act` | 8 | ~30–60 分钟 |
+| 单张 RTX 4090 / RTX 3090（24 GB） | `diffusion` | 8 | ~2–4 小时 |
+| 单张 L4 / A10G（24 GB） | `act` | 8 | ~1–2 小时 |
+| 单张 L4 / A10G（24 GB） | `smolvla` | 4 | ~3–6 小时 |
+| 单张 A100 40 GB | `smolvla` | 16 | ~1–2 小时 |
+| 单张 A100 40 GB | `pi0` / `pi05` | 4 | ~4–8 小时 |
+| 4× H100 80 GB 集群（`accelerate`） | `diffusion` | 32 | ~30–60 分钟 |
+| 4× H100 80 GB 集群（`accelerate`） | `smolvla` | 32 | ~1–2 小时 |
+| Apple Silicon M1/M2/M3 Max（MPS） | `act` | 4 | ~6–14 小时 |
 
-These are order-of-magnitude figures. Real runs deviate by ±50% depending on image resolution, dataset I/O, dataloader threading, and exact GPU SKU. They are useful as "is this run going to take an hour or a day?" intuition, not as SLAs.
+这些是数量级估算值。实际运行偏差在 ±50% 范围内，具体取决于图像分辨率、数据集 I/O、数据加载器线程数和确切的 GPU 型号。这些数字适用于"这次训练需要一小时还是一天？"的直观判断，而非 SLA 承诺。
 
-### Multi-GPU matters a lot
+### 多 GPU 影响显著
 
-`accelerate launch --num_processes=N` is the easiest way to cut training time. Each optimizer step processes `N × batch_size` samples in roughly the same wall-clock as a single-GPU step, so 4 GPUs ≈ 4× speedup for compute-bound runs. See the [Multi GPU training](./multi_gpu_training) guide for the full setup.
+`accelerate launch --num_processes=N` 是缩短训练时间的最简单方法。每个优化器步处理的 `N × batch_size` 个样本，其实际耗时与单 GPU 步大致相同，因此在计算密集型运行中，4 个 GPU 约可实现 4 倍加速。完整设置请参见[多 GPU 训练](./multi_gpu_training)指南。
 
-Reference data points on a 4×H100 80 GB cluster (`accelerate launch --num_processes=4`), 5000 steps, batch 32, AdamW, dataset [`imstevenpmwork/super_poulain_draft`](https://huggingface.co/datasets/imstevenpmwork/super_poulain_draft) (~50 episodes, ~640×480 images):
+在 4×H100 80 GB 集群（`accelerate launch --num_processes=4`）上的参考数据点：5000 步，批次 32，AdamW，数据集 [`imstevenpmwork/super_poulain_draft`](https://huggingface.co/datasets/imstevenpmwork/super_poulain_draft)（约 50 回合，约 640×480 图像）：
 
-| Policy      | Wall-clock | `update_s` | `dataloading_s` | GPU util | Notable flags                                                                                                                  |
+| 策略 | 实际时间 | `update_s` | `dataloading_s` | GPU 利用率 | 重要标志 |
 | ----------- | ---------- | ---------: | --------------: | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `diffusion` | 16m 17s    |      0.167 |           0.015 | ~90%     | defaults (training from scratch)                                                                                               |
-| `smolvla`   | 27m 49s    |      0.312 |           0.011 | ~80%     | `--policy.path=lerobot/smolvla_base`, `freeze_vision_encoder=false`, `train_expert_only=false`                                 |
-| `pi05`      | 3h 41m     |      2.548 |           0.014 | ~95%     | `--policy.pretrained_path=lerobot/pi05_base`, `gradient_checkpointing=true`, `dtype=bfloat16`, vision encoder + expert trained |
+| `diffusion` | 16 分 17 秒 | 0.167 | 0.015 | ~90% | 默认设置（从头训练） |
+| `smolvla` | 27 分 49 秒 | 0.312 | 0.011 | ~80% | `--policy.path=lerobot/smolvla_base`, `freeze_vision_encoder=false`, `train_expert_only=false` |
+| `pi05` | 3 小时 41 分 | 2.548 | 0.014 | ~95% | `--policy.pretrained_path=lerobot/pi05_base`, `gradient_checkpointing=true`, `dtype=bfloat16`，训练视觉编码器和专家模型 |
 
-The `dataloading_s` vs. `update_s` ratio is the diagnostic that matters: when `dataloading_s` approaches `update_s`, more GPUs stop helping — your dataloader is the bottleneck and you should look at `--num_workers`, image resolution, and disk speed before adding compute.
+`dataloading_s` 与 `update_s` 的比值是关键的诊断指标：当 `dataloading_s` 接近 `update_s` 时，增加更多 GPU 将不再有效——此时数据加载器成为瓶颈，应在增加计算资源前先检查 `--num_workers`、图像分辨率和磁盘速度。
 
-### Schedule and checkpoints
+### 调度和检查点
 
-If you shorten training (e.g. 5k–10k steps on a small dataset), also shorten the LR schedule with `--policy.scheduler_decay_steps≈--steps`. Otherwise the LR stays near its peak and never decays. Same for `--save_freq`.
+如果缩短训练（例如在小型数据集上训练 5k–10k 步），请同时使用 `--policy.scheduler_decay_steps≈--steps` 缩短学习率调度周期。否则学习率将保持在峰值附近而不会衰减。`--save_freq` 也是如此。
 
-## Where to run
+## 在哪里运行
 
-VRAM is the first filter. Within a tier, pick by budget and availability — the `$`–`$$$$` columns are relative; check current pricing on the provider you actually use.
+显存是首要筛选条件。在同一级别内，根据预算和可用性选择——`$`–`$$$$` 列为相对价格；请查看您实际使用的云服务商的当前定价。
 
-| Class                      | VRAM  | Tier   | Comfortable for                                             |
+| 类别 | 显存 | 价格等级 | 适合用于 |
 | -------------------------- | ----- | ------ | ----------------------------------------------------------- |
-| RTX 3090 / 4090 (consumer) | 24 GB | `$`    | Light BC, Diffusion, SmolVLA. Tight for VLAs at batch 1.    |
-| L4 / A10G (cloud)          | 24 GB | `$–$$` | Same envelope; common on Google Cloud, RunPod, AWS `g5/g6`. |
-| A100 40 GB                 | 40 GB | `$$$`  | Any policy at reasonable batch sizes.                       |
-| A100 80 GB / H100 80 GB    | 80 GB | `$$$$` | Multi-GPU clusters; large batches for VLAs.                 |
-| **CPU only**               | —     | —      | Don't train. Use Colab or rent a GPU.                       |
+| RTX 3090 / 4090（消费级） | 24 GB | `$` | 轻量 BC、Diffusion、SmolVLA。批次为 1 时 VLA 内存紧张。 |
+| L4 / A10G（云端） | 24 GB | `$–$$` | 同上；常见于 Google Cloud、RunPod、AWS `g5/g6`。 |
+| A100 40 GB | 40 GB | `$$$` | 任何策略，合理的批次大小。 |
+| A100 80 GB / H100 80 GB | 80 GB | `$$$$` | 多 GPU 集群；VLA 的大批次训练。 |
+| **仅 CPU** | — | — | 不建议训练。请使用 Colab 或租用 GPU。 |
 
 ### Hugging Face Jobs
 
-[Hugging Face Jobs](https://huggingface.co/docs/hub/jobs) lets you run training on managed HF infrastructure, billed by the second, without owning a GPU. `lerobot-train` submits and streams the job for you — just add `--job.target=<flavor>` to a normal training command:
+[Hugging Face Jobs](https://huggingface.co/docs/hub/jobs) 允许您在托管的 HF 基础设施上按秒计费运行训练，无需拥有 GPU。`lerobot-train` 会为您提交并流式传输作业——只需在普通训练命令中添加 `--job.target=<flavor>`：
 
 ```bash
 lerobot-train \
@@ -91,9 +91,9 @@ lerobot-train \
   --job.target=a10g-large
 ```
 
-Notes:
+注意事项：
 
-- Run `hf auth login` once before submitting, the job runs under your token.
-- `--job.target` maps onto the table above: `t4-small`/`t4-medium` (T4, ACT only), `l4x1`/`l4x4` (L4 24 GB), `a10g-small/large/largex2/largex4` (A10G 24 GB scaled out), `a100-large` (A100). List the current catalogue with pricing via `hf jobs hardware`, or see [https://huggingface.co/docs/hub/jobs](https://huggingface.co/docs/hub/jobs).
-- The job defaults to a `2d` (48h) timeout. Override it with `--job.timeout=4h` (or any other valid duration string) to shorten or extend the timeout. The job automatically stops when the command completes.
-- For the full walkthrough — dataset upload, checkpoint streaming, resuming a run on a job — see the [imitation-learning training guide](./il_robots#train-using-hugging-face-jobs).
+- 在提交前运行 `hf auth login` 一次，作业将使用您的令牌运行。
+- `--job.target` 映射到上表：`t4-small`/`t4-medium`（T4，仅 ACT）、`l4x1`/`l4x4`（L4 24 GB）、`a10g-small/large/largex2/largex4`（A10G 24 GB 扩展）、`a100-large`（A100）。使用 `hf jobs hardware` 列出当前目录及定价，或参见 [https://huggingface.co/docs/hub/jobs](https://huggingface.co/docs/hub/jobs)。
+- 作业默认超时时间为 `2d`（48 小时）。使用 `--job.timeout=4h`（或任何其他有效的持续时间字符串）来缩短或延长超时时间。命令完成后作业会自动停止。
+- 完整操作指南——数据集上传、检查点流式传输、在作业上恢复运行——请参见[模仿学习训练指南](./il_robots#train-using-hugging-face-jobs)。

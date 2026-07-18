@@ -1,42 +1,42 @@
 # RoboCerebra
 
-[RoboCerebra](https://robocerebra-project.github.io/) is a long-horizon manipulation benchmark that evaluates **high-level reasoning, planning, and memory** in VLAs. Episodes chain multiple sub-goals with language-grounded intermediate instructions, built on top of LIBERO's simulator stack (MuJoCo + robosuite, Franka Panda 7-DOF).
+[RoboCerebra](https://robocerebra-project.github.io/) 是一个长时域操作基准测试，用于评估 VLA 的**高级推理、规划和记忆能力**。每个回合将多个子目标与自然语言中间指令串联起来，构建在 LIBERO 的仿真器栈（MuJoCo + robosuite，Franka Panda 7 自由度）之上。
 
-- Paper: [RoboCerebra: A Large-scale Benchmark for Long-horizon Robotic Manipulation Evaluation](https://arxiv.org/abs/2506.06677)
-- Project website: [robocerebra-project.github.io](https://robocerebra-project.github.io/)
-- Dataset: [`lerobot/robocerebra_unified`](https://huggingface.co/datasets/lerobot/robocerebra_unified) — LeRobot v3.0, 6,660 episodes / 571,116 frames at 20 fps, 1,728 language-grounded sub-tasks.
-- Pretrained policy: [`lerobot/smolvla_robocerebra`](https://huggingface.co/lerobot/smolvla_robocerebra)
+- 论文：[RoboCerebra: A Large-scale Benchmark for Long-horizon Robotic Manipulation Evaluation](https://arxiv.org/abs/2506.06677)
+- 项目网站：[robocerebra-project.github.io](https://robocerebra-project.github.io/)
+- 数据集：[`lerobot/robocerebra_unified`](https://huggingface.co/datasets/lerobot/robocerebra_unified) — LeRobot v3.0，6,660 个回合 / 571,116 帧，20 fps，1,728 个自然语言子任务。
+- 预训练策略：[`lerobot/smolvla_robocerebra`](https://huggingface.co/lerobot/smolvla_robocerebra)
 
-## Available tasks
+## 可用任务
 
-RoboCerebra reuses LIBERO's simulator, so evaluation runs against the LIBERO `libero_10` long-horizon suite:
+RoboCerebra 复用 LIBERO 的仿真器，因此评估针对 LIBERO 的 `libero_10` 长时域任务套件运行：
 
-| Suite     | CLI name    | Tasks | Description                                                   |
-| --------- | ----------- | ----- | ------------------------------------------------------------- |
-| LIBERO-10 | `libero_10` | 10    | Long-horizon kitchen/living room tasks chaining 3–6 sub-goals |
+| 任务套件     | CLI 名称     | 任务数 | 描述                                 |
+| ------------ | ------------ | ------ | ------------------------------------ |
+| LIBERO-10    | `libero_10`  | 10     | 长时域厨房/客厅任务，串联 3-6 个子目标 |
 
-Each RoboCerebra episode in the dataset is segmented into multiple sub-tasks with natural-language instructions, which the unified dataset exposes as independent supervision signals.
+数据集中每个 RoboCerebra 回合被分割为多个带有自然语言指令的子任务，统一数据集将其作为独立的监督信号提供。
 
-## Installation
+## 安装
 
-RoboCerebra piggybacks on LIBERO, so the `libero` extra is all you need:
+RoboCerebra 依托 LIBERO，因此只需 `libero` 额外依赖项：
 
 ```bash
 pip install -e ".[libero]"
 ```
 
 <Tip>
-RoboCerebra requires Linux (MuJoCo / robosuite). Set the rendering backend before training or evaluation:
+RoboCerebra 需要 Linux 环境（MuJoCo / robosuite）。在训练或评估前设置渲染后端：
 
 ```bash
-export MUJOCO_GL=egl  # for headless servers (HPC, cloud)
+export MUJOCO_GL=egl  # 用于无头服务器（HPC、云环境）
 ```
 
 </Tip>
 
-## Evaluation
+## 评估
 
-RoboCerebra eval runs against LIBERO's `libero_10` suite with RoboCerebra's camera naming (`image` + `wrist_image`) and an extra empty-camera slot so a three-view-trained policy receives the expected input layout:
+RoboCerebra 评估针对 LIBERO 的 `libero_10` 任务套件运行，使用 RoboCerebra 的摄像头命名（`image` + `wrist_image`）和一个额外的空摄像头槽位，使经过三视图训练的策略能接收到预期的输入布局：
 
 ```bash
 lerobot-eval \
@@ -56,34 +56,34 @@ lerobot-eval \
   --policy.empty_cameras=1
 ```
 
-### Recommended evaluation episodes
+### 建议的评估回合数
 
-**10 episodes per task** across the `libero_10` suite (100 total) for reproducible benchmarking. Matches the protocol used in the RoboCerebra paper.
+在 `libero_10` 任务套件中**每个任务 10 个回合**（共 100 个回合）以实现可重复的基准测试。这与 RoboCerebra 论文中使用的协议一致。
 
-## Policy inputs and outputs
+## 策略输入与输出
 
-**Observations:**
+**观测数据：**
 
-- `observation.state` — 8-dim proprioceptive state (7 joint positions + gripper)
-- `observation.images.image` — third-person view, 256×256 HWC uint8
-- `observation.images.wrist_image` — wrist-mounted camera view, 256×256 HWC uint8
+- `observation.state` — 8 维本体感受状态（7 个关节位置 + 夹爪）
+- `observation.images.image` — 第三人称视角，256×256 HWC uint8
+- `observation.images.wrist_image` — 腕部摄像头视角，256×256 HWC uint8
 
-**Actions:**
+**动作：**
 
-- Continuous control in `Box(-1, 1, shape=(7,))` — end-effector delta (6D) + gripper (1D)
+- 在 `Box(-1, 1, shape=(7,))` 中的连续控制——末端执行器增量（6D）+ 夹爪（1D）
 
-## Training
+## 训练
 
-The unified dataset at [`lerobot/robocerebra_unified`](https://huggingface.co/datasets/lerobot/robocerebra_unified) exposes two RGB streams and language-grounded sub-task annotations:
+[`lerobot/robocerebra_unified`](https://huggingface.co/datasets/lerobot/robocerebra_unified) 的统一数据集提供了两个 RGB 流和基于自然语言的子任务标注：
 
-| Feature                          | Shape         | Description          |
-| -------------------------------- | ------------- | -------------------- |
-| `observation.images.image`       | (256, 256, 3) | Third-person view    |
-| `observation.images.wrist_image` | (256, 256, 3) | Wrist-mounted camera |
-| `observation.state`              | (8,)          | Joint pos + gripper  |
-| `action`                         | (7,)          | EEF delta + gripper  |
+| 特征                            | 形状            | 描述             |
+| ------------------------------- | --------------- | ---------------- |
+| `observation.images.image`      | (256, 256, 3)   | 第三人称视角     |
+| `observation.images.wrist_image`| (256, 256, 3)   | 腕部摄像头       |
+| `observation.state`             | (8,)            | 关节位置 + 夹爪  |
+| `action`                        | (7,)            | 末端执行器增量 + 夹爪 |
 
-Fine-tune a SmolVLA base on it:
+在其上微调 SmolVLA 基础模型：
 
 ```bash
 lerobot-train \
@@ -94,6 +94,6 @@ lerobot-train \
   --output_dir=outputs/smolvla_robocerebra
 ```
 
-## Reproducing published results
+## 复现已发表结果
 
-The released checkpoint [`lerobot/smolvla_robocerebra`](https://huggingface.co/lerobot/smolvla_robocerebra) was trained on `lerobot/robocerebra_unified` and evaluated with the command in the [Evaluation](#evaluation) section. CI runs the same command with `--eval.n_episodes=1` as a smoke test on every PR touching the benchmark.
+已发布的检查点 [`lerobot/smolvla_robocerebra`](https://huggingface.co/lerobot/smolvla_robocerebra) 在 `lerobot/robocerebra_unified` 上训练，并使用[评估](#评估)部分的命令进行评估。CI 在每个触及该基准测试的 PR 上使用 `--eval.n_episodes=1` 运行相同的命令作为烟雾测试。

@@ -1,73 +1,49 @@
-# MolmoAct2 Policy
+# MolmoAct2 策略
 
-MolmoAct2 is the LeRobot policy implementation of
-[MolmoAct2](https://allenai.org/blog/molmoact2), ported into the LeRobot
-training, evaluation, checkpointing, and dataset interfaces for easier use with
-LeRobot datasets.
+MolmoAct2 是 [MolmoAct2](https://allenai.org/blog/molmoact2) 的 LeRobot 策略实现，被移植到 LeRobot 的训练、评估、检查点保存和数据集接口中，以便于配合 LeRobot 数据集使用。
 
-This implementation currently supports training and evaluation for the regular
-MolmoAct2 model. MolmoAct2-Think, which supports adaptive depth reasoning, is
-not included in this LeRobot policy yet and is coming soon.
+该实现目前支持标准 MolmoAct2 模型的训练和评估。支持自适应深度推理的 MolmoAct2-Think 尚未包含在当前 LeRobot 策略中，即将推出。
 
-For the original MolmoAct2 training code used for the experiments reported in
-the paper, see [allenai/molmoact2](https://github.com/allenai/molmoact2).
+关于论文中报告的原始 MolmoAct2 训练代码，请参见 [allenai/molmoact2](https://github.com/allenai/molmoact2)。
 
-## Installation Requirements
+## 安装要求
 
-Install LeRobot with the MolmoAct2 optional dependencies:
+安装 LeRobot 并带上 MolmoAct2 可选依赖项：
 
 ```bash
 uv sync --locked --extra molmoact2
 ```
 
-To run the models in this repository, you need an NVIDIA GPU. The measurements
-below were taken on a single NVIDIA H100 80GB with bf16 model loading, LIBERO with two RGB cameras. MolmoAct2 rows use `chunk_size=10`, action dim 7
-padded to `expected_max_action_dim=32`, and `num_flow_timesteps=8`. Training measurements use
-`gradient_checkpointing=true` and include the forward pass, backward pass,
-gradient clipping, optimizer step, and optimizer state allocation. Values are
-peak GPU memory sampled with `nvidia-smi`. Leave a few GiB of headroom for
-dataloader workers, CUDA context, and fragmentation.
+要运行此仓库中的模型，您需要一块 NVIDIA GPU。以下测量结果来自单块 NVIDIA H100 80GB，使用 bf16 模型加载，LIBERO 环境使用两个 RGB 摄像头。MolmoAct2 行使用 `chunk_size=10`，动作维度 7 填充到 `expected_max_action_dim=32`，以及 `num_flow_timesteps=8`。训练测量使用 `gradient_checkpointing=true`，包括前向传播、反向传播、梯度裁剪、优化器步骤和优化器状态分配。值为使用 `nvidia-smi` 采样的峰值 GPU 内存。请为数据加载器工作进程、CUDA 上下文和内存碎片预留几 GiB 的空间。
 
-Multi-GPU training through `accelerate` increases throughput and global batch
-size, but this LeRobot port does not currently expose the original MolmoAct2
-`fsdp_devices` model-parallel training path. The current training script has
-not been tested for multi-node training.
+通过 `accelerate` 进行多 GPU 训练可以提高吞吐量和全局批量大小，但当前 LeRobot 移植版本尚未暴露原始 MolmoAct2 的 `fsdp_devices` 模型并行训练路径。当前的训练脚本尚未经过多节点训练测试。
 
-| Mode                                             | Peak Memory, bs=8 | Peak Memory, bs=16 | Peak Memory, bs=32 |
+| 模式                                             | 峰值内存, bs=8 | 峰值内存, bs=16 | 峰值内存, bs=32 |
 | ------------------------------------------------ | ----------------: | -----------------: | -----------------: |
-| Inference, continuous, CUDA graph enabled (bs=1) |          12.1 GiB |                  - |                  - |
-| Fine-tuning, action expert only, continuous      |          16.5 GiB |           18.3 GiB |           21.4 GiB |
-| Fine-tuning, LoRA VLM, both action modes         |          20.2 GiB |           26.8 GiB |           41.3 GiB |
-| Fine-tuning, full model, both action modes       |          48.3 GiB |           49.8 GiB |           60.1 GiB |
+| 推理，连续动作，启用 CUDA 图形（bs=1）             |          12.1 GiB |                  - |                  - |
+| 微调，仅动作专家，连续动作模式                      |          16.5 GiB |           18.3 GiB |           21.4 GiB |
+| 微调，LoRA VLM，两种动作模式                       |          20.2 GiB |           26.8 GiB |           41.3 GiB |
+| 微调，完整模型，两种动作模式                        |          48.3 GiB |           49.8 GiB |           60.1 GiB |
 
-The repo has been tested with Ubuntu 22.04.
+该仓库已在 Ubuntu 22.04 上经过测试。
 
-## Usage
+## 使用方法
 
-To use MolmoAct2 in a LeRobot training config, set:
+要在 LeRobot 训练配置中使用 MolmoAct2，请设置：
 
 ```bash
 --policy.type=molmoact2
 ```
 
-## Training
+## 训练
 
-MolmoAct2 can be fine-tuned from either the released MolmoAct2 Hugging Face
-checkpoint format or from a checkpoint already saved by LeRobot. Both routes use
-the same LeRobot training loop, dataset transforms, checkpoint saving, and
-logging. The difference is only how the initial policy weights and processor
-state are loaded.
+MolmoAct2 可以从已发布的 MolmoAct2 Hugging Face 检查点格式微调，也可以从 LeRobot 已保存的检查点微调。两种方式使用相同的 LeRobot 训练循环、数据集变换、检查点保存和日志记录。区别仅在于初始策略权重和处理器状态的加载方式。
 
-### Training With Original MolmoAct2 Weight
+### 使用原始 MolmoAct2 权重训练
 
-Use `policy.checkpoint_path` when starting from a released MolmoAct2 checkpoint,
-for example `allenai/MolmoAct2` or `allenai/MolmoAct2-LIBERO`. LeRobot will load
-the original HF model files, then build its own policy processor from the
-dataset metadata and the policy options below.
+从已发布的 MolmoAct2 检查点开始时使用 `policy.checkpoint_path`，例如 `allenai/MolmoAct2` 或 `allenai/MolmoAct2-LIBERO`。LeRobot 将加载原始的 Hugging Face 模型文件，然后根据数据集元数据和下面的策略选项构建自己的策略处理器。
 
-The command below shows full fine-tuning on the merged LIBERO dataset. It uses
-bf16 model loading, 8 flow timesteps, LeRobot dataset statistics, image
-augmentation, and LeRobot's checkpointing/logging path.
+以下命令展示了在合并的 LIBERO 数据集上进行的完整微调。它使用 bf16 模型加载、8 个流匹配时间步、LeRobot 数据集统计信息、图像增强以及 LeRobot 的检查点保存/日志记录路径。
 
 ```bash
 accelerate launch \
@@ -108,13 +84,9 @@ accelerate launch \
   --save_freq=2000
 ```
 
-### Training With LeRobot MolmoAct2 Weight
+### 使用 LeRobot MolmoAct2 权重训练
 
-Use `policy.path` when starting from a MolmoAct2 checkpoint that was saved by
-LeRobot, either from a local `pretrained_model` directory or from the Hub. This
-restores the saved LeRobot policy config, model weights, processor, and
-normalization statistics. You can still override training-time options such as
-`batch_size`, `steps`, LoRA flags, or `policy.action_mode`.
+从 LeRobot 保存的 MolmoAct2 检查点开始时使用 `policy.path`，可以是本地的 `pretrained_model` 目录或 Hugging Face Hub。这将恢复已保存的 LeRobot 策略配置、模型权重、处理器和归一化统计信息。您仍然可以覆盖训练时的选项，如 `batch_size`、`steps`、LoRA 标志或 `policy.action_mode`。
 
 ```bash
 accelerate launch \
@@ -147,121 +119,67 @@ accelerate launch \
   --save_freq=2000
 ```
 
-### Common Practices
+### 常见实践
 
-For fine-tuning on a comparatively small dataset, such as a single LIBERO suite
-or a real-world dataset with less than 200 demonstrations, a global batch size of
-16 to 32 is a good starting point. In these settings, `policy.enable_lora_vlm=true` or `policy.train_action_expert_only=true` is also a practical choice. In both
-cases, we intentionally keep the action expert fully trainable, which we found
-to be crucial for model performance. For larger fine-tuning datasets, larger
-global batch sizes and full fine-tuning are usually preferred.
+对于在相对较小的数据集上进行微调（例如单个 LIBERO 套件或少于 200 条演示的真实世界数据集），全局批量大小 16 到 32 是一个良好的起点。在这种设置下，`policy.enable_lora_vlm=true` 或 `policy.train_action_expert_only=true` 也是实用的选择。在这两种情况下，我们有意保持动作专家完全可训练，因为我们发现这对模型性能至关重要。对于较大的微调数据集，通常更倾向于使用更大的全局批量大小和完整微调。
 
-### Common Policy Options
+### 常见策略选项
 
-- `policy.checkpoint_path`: original MolmoAct2 HF checkpoint to initialize from.
-  Use this for released MolmoAct2 weights.
-- `policy.path`: LeRobot checkpoint to initialize from. Use this for checkpoints
-  created by LeRobot training.
-- `policy.action_mode`: training target, one of `continuous`, `discrete`, or
-  `both`. `both` trains the flow-matching action expert and the discrete
-  action-token loss.
-- `policy.train_action_expert_only`: trains only parameters whose names contain
-  `action_expert`. It requires `policy.action_mode=continuous`.
-- `policy.enable_lora_vlm`: enables LoRA on VLM linear layers. Use
-  `policy.enable_lora_action_expert=true` only if LoRA should also cover action
-  expert linear layers. When `policy.enable_lora_action_expert=false`, the
-  action expert base weights remain fully trainable while the VLM is trained
-  through LoRA adapters. When `policy.enable_lora_action_expert=true`, the
-  action expert is also adapter-tuned instead of fully fine-tuned.
-- `policy.enable_knowledge_insulation`: when `true`, detaches action-expert
-  context K/V states before the action loss. The default is `false`.
-- `policy.chunk_size`: action horizon used by the policy. For LIBERO we use
-  `10`. This LeRobot port overrides the loaded checkpoint's
-  `max_action_horizon` with this value.
-- `policy.n_action_steps`: number of actions consumed from each predicted
-  chunk before querying the policy again. For LIBERO, set it to `chunk_size`.
-- `policy.setup_type`: text inserted into the prompt to describe the robot and
-  scene, e.g. `single franka robotic arm in libero`. More examples are listed
-  in the `metadata_by_tag` entries of
-  [`norm_stats.json`](https://huggingface.co/allenai/MolmoAct2/blob/main/norm_stats.json).
-- `policy.control_mode`: text inserted into the prompt to describe the action
-  space, e.g. `delta end-effector pose` or `absolute joint pose`.
-- `policy.image_keys`: ordered LeRobot image observation keys passed to the
-  processor.
-- `policy.model_dtype`: checkpoint/forward dtype, one of `float32`,
-  `bfloat16`, or `float16`. Use `bfloat16` for normal training.
-- `policy.num_flow_timesteps`: number of flow-matching timesteps sampled per
-  example during training. We use `8` for fine-tuning.
-- `policy.num_inference_steps`: optional override for continuous action
-  generation steps at inference time.
-- `policy.gradient_checkpointing`: enables checkpointing in the VLM/action path
-  to reduce activation memory.
-- `policy.freeze_embedding`: freezes input embeddings. The default is `true`.
-- `policy.normalize_gripper`: controls whether gripper dimensions are included
-  in state/action quantile normalization. The default is `false`.
-- `policy.normalize_language`: normalizes task strings before prompt
-  construction. The default is `true`.
-- `policy.mask_action_dim_padding`: masks padded dimensions in the flow loss.
-  Released checkpoints use `policy.expected_max_action_dim=32`.
-- `policy.max_sequence_length`: optional manual sequence cap. Leave unset to
-  infer it from images, state dimension, action dimension, action horizon, and
-  discrete-action mode.
+- `policy.checkpoint_path`：用于初始化的原始 MolmoAct2 Hugging Face 检查点。用于已发布的 MolmoAct2 权重。
+- `policy.path`：用于初始化的 LeRobot 检查点。用于 LeRobot 训练创建的检查点。
+- `policy.action_mode`：训练目标，可选 `continuous`（连续）、`discrete`（离散）或 `both`（两者）。`both` 同时训练流匹配动作专家和离散动作令牌损失。
+- `policy.train_action_expert_only`：仅训练名称包含 `action_expert` 的参数。需要 `policy.action_mode=continuous`。
+- `policy.enable_lora_vlm`：对 VLM 线性层启用 LoRA。仅当 LoRA 也应覆盖动作专家线性层时，才使用 `policy.enable_lora_action_expert=true`。当 `policy.enable_lora_action_expert=false` 时，动作专家的基础权重保持完全可训练，同时 VLM 通过 LoRA 适配器训练。当 `policy.enable_lora_action_expert=true` 时，动作专家也通过适配器调整而不是完全微调。
+- `policy.enable_knowledge_insulation`：当为 `true` 时，在动作损失计算前分离动作专家的上下文 K/V 状态。默认值为 `false`。
+- `policy.chunk_size`：策略使用的动作预测范围。对于 LIBERO 我们使用 `10`。此 LeRobot 移植版本会用此值覆盖加载的检查点中的 `max_action_horizon`。
+- `policy.n_action_steps`：每次查询策略之前从每个预测块中消耗的动作步数。对于 LIBERO，将其设置为 `chunk_size`。
+- `policy.setup_type`：插入到提示中的文本，用于描述机器人和场景，例如 `single franka robotic arm in libero`。更多示例请参见 [`norm_stats.json`](https://huggingface.co/allenai/MolmoAct2/blob/main/norm_stats.json) 中的 `metadata_by_tag` 条目。
+- `policy.control_mode`：插入到提示中的文本，用于描述动作空间，例如 `delta end-effector pose` 或 `absolute joint pose`。
+- `policy.image_keys`：传递给处理器的有序 LeRobot 图像观测键。
+- `policy.model_dtype`：检查点/前向数据类型，可选 `float32`、`bfloat16` 或 `float16`。正常训练使用 `bfloat16`。
+- `policy.num_flow_timesteps`：训练期间每个样本采样的流匹配时间步数。微调时我们使用 `8`。
+- `policy.num_inference_steps`：推理时连续动作生成步数的可选覆盖。
+- `policy.gradient_checkpointing`：在 VLM/动作路径中启用检查点以降低激活内存。
+- `policy.freeze_embedding`：冻结输入嵌入。默认值为 `true`。
+- `policy.normalize_gripper`：控制夹爪维度是否包含在状态/动作分位数归一化中。默认值为 `false`。
+- `policy.normalize_language`：在构建提示前对任务字符串进行归一化。默认值为 `true`。
+- `policy.mask_action_dim_padding`：在流损失中掩码填充的维度。已发布的检查点使用 `policy.expected_max_action_dim=32`。
+- `policy.max_sequence_length`：可选的手动序列长度上限。留空则根据图像、状态维度、动作维度、动作范围和离散动作模式推断。
 
-### Learning Rates
+### 学习率
 
-MolmoAct2 uses parameter-group learning rates to match the original MolmoAct2
-fine-tuning experiments.
+MolmoAct2 使用参数组学习率以匹配原始 MolmoAct2 微调实验。
 
-- Full fine-tuning uses `policy.optimizer_lr=1e-5` for the VLM,
-  `policy.optimizer_vit_lr=5e-6` for the vision tower,
-  `policy.optimizer_connector_lr=5e-6` for image connector layers, and
-  `policy.optimizer_action_expert_lr=5e-5` for the action expert.
-- LoRA VLM fine-tuning sets the VLM, vision, and connector LoRA parameter
-  groups to `5e-5` when `policy.enable_lora_vlm=true`. By default,
-  `policy.enable_lora_action_expert=false`, so the action expert is still fully
-  fine-tuned with `policy.optimizer_action_expert_lr`. If
-  `policy.enable_lora_action_expert=true`, the action expert is trained through
-  LoRA adapters instead.
-- Action-expert-only fine-tuning trains only the action expert and uses
-  `policy.optimizer_action_expert_lr=5e-5`.
+- 完整微调使用 `policy.optimizer_lr=1e-5` 用于 VLM，`policy.optimizer_vit_lr=5e-6` 用于视觉编码器，`policy.optimizer_connector_lr=5e-6` 用于图像连接器层，以及 `policy.optimizer_action_expert_lr=5e-5` 用于动作专家。
+- LoRA VLM 微调在 `policy.enable_lora_vlm=true` 时将 VLM、视觉和连接器 LoRA 参数组设置为 `5e-5`。默认情况下，`policy.enable_lora_action_expert=false`，因此动作专家仍然使用 `policy.optimizer_action_expert_lr` 进行完全微调。如果 `policy.enable_lora_action_expert=true`，则动作专家改为通过 LoRA 适配器训练。
+- 仅动作专家微调仅训练动作专家，并使用 `policy.optimizer_action_expert_lr=5e-5`。
 
-You can override the full fine-tuning and action-expert learning rates with
-`policy.optimizer_lr`, `policy.optimizer_vit_lr`,
-`policy.optimizer_connector_lr`, and `policy.optimizer_action_expert_lr`.
-Scheduler settings can be changed with `policy.scheduler_warmup_steps`,
-`policy.scheduler_decay_steps`, and `policy.scheduler_decay_lr`.
+您可以通过 `policy.optimizer_lr`、`policy.optimizer_vit_lr`、`policy.optimizer_connector_lr` 和 `policy.optimizer_action_expert_lr` 覆盖完整微调和动作专家的学习率。调度器设置可以通过 `policy.scheduler_warmup_steps`、`policy.scheduler_decay_steps` 和 `policy.scheduler_decay_lr` 更改。
 
-### Dataset Quantile Statistics
+### 数据集分位数统计信息
 
-MolmoAct2 defaults to quantile normalization for state and action features. If
-your dataset has not been converted with quantile statistics, you can add them
-with:
+MolmoAct2 默认对状态和动作特征使用分位数归一化。如果您的数据集尚未转换分位数统计信息，可以通过以下方式添加：
 
 ```bash
 python src/lerobot/scripts/augment_dataset_quantile_stats.py \
   --repo-id=your_dataset
 ```
 
-Alternatively, train MolmoAct2 with mean/std normalization:
+或者，使用均值/标准差归一化训练 MolmoAct2：
 
 ```bash
 --policy.normalization_mapping='{"ACTION": "MEAN_STD", "STATE": "MEAN_STD", "VISUAL": "IDENTITY"}'
 ```
 
-## Evaluation
+## 评估
 
-Evaluation also supports both LeRobot-saved checkpoints and original MolmoAct2
-HF checkpoints. For LIBERO replication, keep the EGL rendering environment
-fixed and use `policy.per_episode_seed=true`.
+评估也同时支持 LeRobot 保存的检查点和原始 MolmoAct2 Hugging Face 检查点。对于 LIBERO 复现，请保持 EGL 渲染环境固定并使用 `policy.per_episode_seed=true`。
 
-**Important:** We found that `num_steps_wait=10` does not reliably let the
-LIBERO scene stabilize and can degrade measured success. All LIBERO evaluation
-results reported here use `num_steps_wait=50`.
+**重要提示：** 我们发现 `num_steps_wait=10` 不能可靠地让 LIBERO 场景稳定下来，可能会降低测量的成功率。此处报告的所有 LIBERO 评估结果均使用 `num_steps_wait=50`。
 
-### Evaluation With LeRobot MolmoAct2 Weight
+### 使用 LeRobot MolmoAct2 权重评估
 
-Use `policy.path` for a checkpoint saved by LeRobot. The saved processor and
-normalization statistics are restored together with the model.
+对于 LeRobot 保存的检查点使用 `policy.path`。保存的处理器和归一化统计信息会与模型一起恢复。
 
 ```bash
 export MUJOCO_GL=egl
@@ -286,20 +204,11 @@ lerobot-eval \
   --seed=1000
 ```
 
-### Evaluation With Original MolmoAct2 Weight
+### 使用原始 MolmoAct2 权重评估
 
-You can evaluate a released Hugging Face checkpoint directly without first
-converting it to a LeRobot checkpoint. In this case, set
-`policy.checkpoint_path` to the HF model repo and provide `policy.norm_tag`.
-For LIBERO, `policy.norm_tag=libero` loads the LIBERO action/state
-normalization statistics, action horizon, prompt metadata, and image-key order
-from the checkpoint's `norm_stats.json`.
+您可以直接评估已发布的 Hugging Face 检查点，无需先转换为 LeRobot 检查点。此时，将 `policy.checkpoint_path` 设置为 Hugging Face 模型仓库并提供 `policy.norm_tag`。对于 LIBERO，`policy.norm_tag=libero` 会从检查点的 `norm_stats.json` 中加载 LIBERO 动作/状态归一化统计信息、动作范围、提示元数据和图像键顺序。
 
-To fully replicate the MolmoAct2 paper results with released Hugging Face
-checkpoints, we recommend using the v0.5.1-pinned
-[`allenai/lerobot` `molmoact2-hf-inference`](https://github.com/allenai/lerobot/tree/molmoact2-hf-inference)
-branch. That branch matches the original evaluation settings used for the
-reported numbers.
+为了使用已发布的 Hugging Face 检查点完全复现 MolmoAct2 论文结果，我们建议使用固定为 v0.5.1 版本的 [`allenai/lerobot` `molmoact2-hf-inference`](https://github.com/allenai/lerobot/tree/molmoact2-hf-inference) 分支。该分支与用于报告结果的原始评估设置相匹配。
 
 ```bash
 export MUJOCO_GL=egl
@@ -326,85 +235,56 @@ lerobot-eval \
   --seed=1000
 ```
 
-Use `--env.task=libero_10,libero_goal,libero_object,libero_spatial` to run the
-full LIBERO suite. The same command works for other released MolmoAct2
-checkpoints as long as the requested `policy.norm_tag` exists in that
-checkpoint's `norm_stats.json`.
+使用 `--env.task=libero_10,libero_goal,libero_object,libero_spatial` 可运行完整的 LIBERO 套件。只要请求的 `policy.norm_tag` 存在于该检查点的 `norm_stats.json` 中，同样的命令也可用于其他已发布的 MolmoAct2 检查点。
 
-### Common Evaluation Options
+### 常见评估选项
 
-- `policy.inference_action_mode`: required for rollout. Use `continuous` for
-  flow-matching inference or `discrete` for action-token inference. It must be
-  compatible with the training-time `policy.action_mode` saved in the
-  checkpoint.
-- `policy.path`: LeRobot checkpoint path or Hub repo. Use this for checkpoints
-  saved by LeRobot.
-- `policy.checkpoint_path`: original MolmoAct2 HF checkpoint path or Hub repo.
-  Use this with `policy.type=molmoact2` and `policy.norm_tag`.
-- `policy.norm_tag`: selects normalization statistics, prompt metadata,
-  image-key order, and action horizon from the original checkpoint's
-  `norm_stats.json`. It is required for direct original-HF checkpoint
-  evaluation.
-- `policy.model_dtype`: model load/forward dtype. Use `bfloat16` for normal
-  GPU evaluation. Use `float32` only when you explicitly want fp32 inference.
-- `policy.use_amp`: runs the policy forward under autocast during eval. For
-  `model_dtype=bfloat16`, keep this enabled.
-- `policy.enable_inference_cuda_graph`: enables the MolmoAct2 inference CUDA
-  graph path for faster repeated continuous-action rollout.
-- `policy.per_episode_seed` and `policy.eval_seed`: make stochastic continuous
-  action generation deterministic per episode for replication.
-- `env.task`: comma-separated LIBERO suites or a single suite. Use
-  `libero_10,libero_goal,libero_object,libero_spatial` for the full benchmark.
-- `env.camera_name_mapping`: maps LIBERO camera names to the image keys expected
-  by the policy processor.
+- `policy.inference_action_mode`：执行时必需。使用 `continuous` 进行流匹配推理，或使用 `discrete` 进行动作令牌推理。必须与检查点中保存的训练时 `policy.action_mode` 兼容。
+- `policy.path`：LeRobot 检查点路径或 Hub 仓库。用于 LeRobot 保存的检查点。
+- `policy.checkpoint_path`：原始 MolmoAct2 Hugging Face 检查点路径或 Hub 仓库。与 `policy.type=molmoact2` 和 `policy.norm_tag` 一起使用。
+- `policy.norm_tag`：从原始检查点的 `norm_stats.json` 中选择归一化统计信息、提示元数据、图像键顺序和动作范围。直接使用原始 Hugging Face 检查点评估时必须设置。
+- `policy.model_dtype`：模型加载/前向数据类型。正常 GPU 评估使用 `bfloat16`。仅在明确需要 fp32 推理时使用 `float32`。
+- `policy.use_amp`：评估期间在 autocast 下运行策略前向传播。对于 `model_dtype=bfloat16`，保持启用状态。
+- `policy.enable_inference_cuda_graph`：启用 MolmoAct2 推理 CUDA 图形路径，以加快重复连续动作执行。
+- `policy.per_episode_seed` 和 `policy.eval_seed`：使随机连续动作生成在每个回合中具有确定性，以便于复现。
+- `env.task`：逗号分隔的 LIBERO 套件或单个套件。使用 `libero_10,libero_goal,libero_object,libero_spatial` 运行完整基准测试。
+- `env.camera_name_mapping`：将 LIBERO 摄像头名称映射到策略处理器期望的图像键。
 
-## Performance Results
+## 性能结果
 
-### LIBERO Benchmark Results
+### LIBERO 基准测试结果
 
-MolmoAct2 has demonstrated strong performance on the LIBERO benchmark suite. To
-compare and test its LeRobot implementation, we fine-tuned
-[`allenai/MolmoAct2-LIBERO`](https://huggingface.co/allenai/MolmoAct2-LIBERO)
-for an additional 10k steps on the LIBERO dataset with per-GPU batch size 32 on
-8 H100 GPUs, then compared the results to the original MolmoAct2 reference
-results.
+MolmoAct2 在 LIBERO 基准测试套件上展现了强劲的性能。为了比较和测试其 LeRobot 实现，我们在 LIBERO 数据集上对 [`allenai/MolmoAct2-LIBERO`](https://huggingface.co/allenai/MolmoAct2-LIBERO) 进行了额外 10k 步的微调（每个 GPU 批量大小 32，使用 8 块 H100 GPU），然后将结果与原始 MolmoAct2 参考结果进行比较。
 
-The LeRobot fine-tuned checkpoint reported here is available at
-[`allenai/MolmoAct2-LIBERO-LeRobot`](https://huggingface.co/allenai/MolmoAct2-LIBERO-LeRobot)
-and was trained on
-[`allenai/MolmoAct2-LIBERO-Dataset`](https://huggingface.co/datasets/allenai/MolmoAct2-LIBERO-Dataset).
+此处报告的 LeRobot 微调检查点可从 [`allenai/MolmoAct2-LIBERO-LeRobot`](https://huggingface.co/allenai/MolmoAct2-LIBERO-LeRobot) 获取，并在 [`allenai/MolmoAct2-LIBERO-Dataset`](https://huggingface.co/datasets/allenai/MolmoAct2-LIBERO-Dataset) 上训练。
 
-| Benchmark      | LeRobot Implementation | MolmoAct2 Original |
+| 基准测试          | LeRobot 实现 | MolmoAct2 原始结果 |
 | -------------- | ---------------------: | -----------------: |
 | LIBERO Spatial |                  98.4% |              97.8% |
 | LIBERO Object  |                 100.0% |             100.0% |
 | LIBERO Goal    |                  98.0% |              97.8% |
 | LIBERO 10      |                  96.6% |              93.2% |
-| Average        |                 98.25% |             97.20% |
+| 平均           |                 98.25% |             97.20% |
 
-These results demonstrate MolmoAct2's strong performance across diverse robotic
-manipulation tasks. To reproduce them, follow the instructions in the LIBERO
-evaluation section.
+这些结果展示了 MolmoAct2 在多样化机器人操作任务上的强劲性能。要复现这些结果，请按照 LIBERO 评估章节中的说明操作。
 
-## Hardware Deployment (lerobot-rollout)
+## 硬件部署（lerobot-rollout）
 
-LeRobot-format checkpoints are available on the Hub for direct use with
-`lerobot-rollout`. Each checkpoint uses specific camera names that must
-match your robot's camera configuration.
+LeRobot 格式的检查点可在 Hugging Face Hub 上获取，可直接用于 `lerobot-rollout`。每个检查点使用特定的摄像头名称，必须与您的机器人摄像头配置匹配。
 
-### Camera naming convention
+### 摄像头命名约定
 
-Each checkpoint expects specific `observation.images.*` keys.
-If your robot cameras have different names, use `--rename_map` to map them:
+每个检查点期望特定的 `observation.images.*` 键。
+如果您的机器人摄像头具有不同的名称，请使用 `--rename_map` 进行映射：
 
-| Checkpoint                    | Camera keys            | Description              |
+| 检查点                          | 摄像头键                | 描述                 |
 | ----------------------------- | ---------------------- | ------------------------ |
-| MolmoAct2-LIBERO-LeRobot      | `image`, `wrist_image` | LIBERO sim cameras       |
-| MolmoAct2-BimanualYAM-LeRobot | `top`, `left`, `right` | YAM 3-camera setup       |
-| MolmoAct2-DROID-LeRobot       | `cam0`, `cam1`         | External + wrist         |
-| MolmoAct2-SO100_101-LeRobot   | `cam0`, `cam1`         | Primary + secondary view |
+| MolmoAct2-LIBERO-LeRobot      | `image`, `wrist_image` | LIBERO 仿真摄像头        |
+| MolmoAct2-BimanualYAM-LeRobot | `top`, `left`, `right` | YAM 三摄像头设置         |
+| MolmoAct2-DROID-LeRobot       | `cam0`, `cam1`         | 外部摄像头 + 腕部摄像头  |
+| MolmoAct2-SO100_101-LeRobot   | `cam0`, `cam1`         | 主视角 + 副视角        |
 
-Example with an SO-100 robot using top and side cameras:
+使用带有顶部和侧面摄像头的 SO-100 机器人示例：
 
 ```bash
 lerobot-rollout \
@@ -419,61 +299,39 @@ lerobot-rollout \
   --task="pick up the red cube" --duration=30
 ```
 
-To use a wrist camera instead, just change the rename mapping:
+要改用腕部摄像头，只需更改重命名映射：
 
 ```bash
 --rename_map='{"observation.images.top": "observation.images.cam0", "observation.images.wrist": "observation.images.cam1"}'
 ```
 
-### Joint frame transform (SO-100/101 zero-shot)
+### 关节坐标系变换（SO-100/101 零样本部署）
 
 <Tip warning={true}>
-The MolmoAct2-SO100_101 checkpoint was trained on data that uses a different
-joint calibration convention than LeRobot >= 0.5.0. Without a frame
-correction, the arm may move in the wrong direction.
+MolmoAct2-SO100_101 检查点训练所使用的数据采用了与 LeRobot >= 0.5.0 不同的关节标定约定。如果不进行坐标系校正，机械臂可能会朝错误方向运动。
 
-This affects both **zero-shot deployment** and **fine-tuning** from the
-original checkpoint. The pretrained weights expect the old convention, so
-all joint data (observations and actions) must be transformed to match.
+这会影响从原始检查点的**零样本部署**和**微调**。预训练权重期望使用旧约定，因此所有关节数据（观测和动作）都必须进行变换以匹配。
 
-The converted LeRobot checkpoint (`lerobot/MolmoAct2-SO100_101-LeRobot`)
-already includes this correction in its processor pipeline. If you convert
-or fine-tune the checkpoint yourself, set the following in the policy config (`configuration_molmoact2.py`):
+转换后的 LeRobot 检查点（`lerobot/MolmoAct2-SO100_101-LeRobot`）已在其处理器流程中包含了这一校正。如果您自行转换或微调检查点，请在策略配置（`configuration_molmoact2.py`）中设置以下内容：
 
-- `joint_signs`: `[1, -1, 1, 1, 1, 1]` (flips shoulder_lift direction)
-- `joint_offsets`: `[0, 90, 90, 0, 0, 0]` (shifts shoulder_lift and elbow_flex by 90°)
+- `joint_signs`: `[1, -1, 1, 1, 1, 1]`（翻转 shoulder_lift 方向）
+- `joint_offsets`: `[0, 90, 90, 0, 0, 0]`（将 shoulder_lift 和 elbow_flex 移动 90度）
 
-See the [backward compatibility guide](./backwardcomp) for details on the
-calibration change.
+有关标定变更的详细信息，请参阅[向后兼容指南](./backwardcomp)。
 
 </Tip>
 
-## Differences From the Original Implementation
+## 与原始实现的差异
 
-This LeRobot port is intended to match MolmoAct2 behavior while using LeRobot's
-dataset, training, evaluation, checkpoint, and logging infrastructure. The main
-differences from the original training repository are:
+此 LeRobot 移植版本旨在匹配 MolmoAct2 行为，同时使用 LeRobot 的数据集、训练、评估、检查点和日志基础设施。与原始训练仓库的主要差异如下：
 
-- The original paper training stack loads the model in fp32 and trains under
-  mixed precision. This LeRobot port usually loads the checkpoint directly in
-  `policy.model_dtype=bfloat16` for lower memory use.
-- The original repository uses its own FSDP/model-parallel training path. The
-  LeRobot port uses the standard LeRobot/Accelerate training path and has not
-  been tested for multi-node training.
-- The original repository supports sequence packing. The LeRobot port trains on
-  one LeRobot sample per item and pads to an inferred fixed sequence budget.
-- The LeRobot port follows LeRobot's optimizer, scheduler, checkpoint saving,
-  dataset transforms, image augmentation, and Weights & Biases logging
-  conventions.
-- The original training path supports mixed action horizons by padding to
-  `max_action_horizon` and masking padded horizon slots in the action expert
-  self-attention. This is useful when training across datasets with different
-  control frequencies. The LeRobot port currently targets single-dataset
-  fine-tuning, so `policy.chunk_size` overrides the checkpoint
-  `max_action_horizon` and horizon masking is not implemented yet. Support for
-  this mixed-horizon path is planned.
+- 原始论文训练堆栈以 fp32 加载模型并在混合精度下训练。此 LeRobot 移植版本通常直接以 `policy.model_dtype=bfloat16` 加载检查点，以降低内存使用。
+- 原始仓库使用自己的 FSDP/模型并行训练路径。LeRobot 移植版本使用标准的 LeRobot/Accelerate 训练路径，尚未经过多节点训练测试。
+- 原始仓库支持序列打包。LeRobot 移植版本对每个样本训练一个 LeRobot 样本，并填充到推断的固定序列预算。
+- LeRobot 移植版本遵循 LeRobot 的优化器、调度器、检查点保存、数据集变换、图像增强和 Weights & Biases 日志记录约定。
+- 原始训练路径支持通过填充到 `max_action_horizon` 并在动作专家自注意力中掩码填充的时间槽来实现混合动作范围。这在跨不同控制频率的数据集进行训练时很有用。LeRobot 移植版本目前针对单数据集微调，因此 `policy.chunk_size` 会覆盖检查点的 `max_action_horizon`，且尚未实现时间槽掩码功能。对该混合动作范围路径的支持已在计划中。
 
-## Citation
+## 引用
 
 ```bibtex
 @misc{fang2026molmoact2actionreasoningmodels,
@@ -487,9 +345,6 @@ differences from the original training repository are:
 }
 ```
 
-## License
+## 许可协议
 
-This model is licensed under Apache 2.0. It is intended for research and
-educational use in accordance with
-[Ai2's Responsible Use Guidelines](https://allenai.org/responsible-use),
-consistent with [allenai/molmoact2](https://github.com/allenai/molmoact2).
+本模型采用 Apache 2.0 许可。它旨在按照 [Ai2 的负责任的 AI 使用指南](https://allenai.org/responsible-use)用于研究和教育目的，与 [allenai/molmoact2](https://github.com/allenai/molmoact2) 保持一致。

@@ -1,77 +1,77 @@
 # EVO1
 
-EVO1 is a Vision-Language-Action policy for robot control built around an InternVL3 backbone and a continuous flow-matching action head. This LeRobot integration exposes EVO1 as a standard policy type so it can be trained and evaluated with the usual LeRobot dataset, checkpoint, and processor APIs.
+EVO1 是一种用于机器人控制的视觉-语言-动作策略（Vision-Language-Action policy），以 InternVL3 骨干网络和连续流匹配动作头为核心构建。此 LeRobot 集成将 EVO1 作为标准策略类型暴露，使其可以通过常规的 LeRobot 数据集、检查点和处理器 API 进行训练和评估。
 
-## Model Overview
+## 模型概述
 
-The policy embeds one or more camera images and the language task prompt with InternVL3, pads robot state/action vectors to fixed maximum dimensions, and predicts future action chunks with a flow-matching action head. During inference, the policy samples an action chunk and returns `n_action_steps` actions from that chunk before sampling again.
+该策略使用 InternVL3 嵌入一个或多个相机图像以及语言任务提示，将机器人状态/动作向量填充到固定的最大维度，并通过流匹配动作头预测未来动作块。在推理过程中，策略采样一个动作块，返回该块中的 `n_action_steps` 步动作，然后再次采样。
 
-### What the LeRobot Integration Covers
+### LeRobot 集成涵盖的内容
 
-- Standard `policy.type=evo1` configuration through LeRobot
-- InternVL3 image/text embedding with optional FlashAttention fallback
-- Stage-based finetuning controls for action-head-only and VLM finetuning runs
-- Continuous flow-matching action prediction
-- Checkpoint save/load through LeRobot policy APIs
-- Training with `lerobot-train` and evaluation with standard policy inference APIs
+- 通过 LeRobot 标准化的 `policy.type=evo1` 配置
+- InternVL3 图像/文本嵌入，支持可选的 FlashAttention 回退
+- 基于阶段的微调控制，用于仅动作头训练和 VLM 微调训练
+- 连续流匹配动作预测
+- 通过 LeRobot 策略 API 进行检查点保存/加载
+- 使用 `lerobot-train` 训练和使用标准策略推理 API 评估
 
-The broader EVO1 project may include additional training scripts and dataset tooling. This page focuses on the LeRobot robot-control policy path.
+更广泛的 EVO1 项目可能包含额外的训练脚本和数据集工具。本页面聚焦于 LeRobot 机器人控制策略路径。
 
-## Installation Requirements
+## 安装要求
 
-1. Install LeRobot by following the [Installation Guide](./installation).
-2. Install EVO1 dependencies:
+1. 按照[安装指南](./installation)安装 LeRobot。
+2. 安装 EVO1 依赖项：
 
    ```bash
    pip install -e ".[evo1]"
    ```
 
-   For LIBERO evaluation, install the LIBERO extra as well:
+   如需 LIBERO 评估，同时安装 LIBERO 额外依赖：
 
    ```bash
    pip install -e ".[evo1,libero]"
    ```
 
-3. Install a `flash-attn` wheel only if it is compatible with your Python, PyTorch, CUDA, and GPU stack. EVO1 falls back to standard attention when `flash_attn` is not available.
+3. 仅当与你的 Python、PyTorch、CUDA 和 GPU 栈兼容时，安装 `flash-attn` 轮子。当 `flash_attn` 不可用时，EVO1 会回退到标准注意力。
 
-EVO1 uses the native Hugging Face `transformers` InternVL implementation, so `policy.vlm_model_name` must point to a natively converted checkpoint such as `OpenGVLab/InternVL3-1B-hf` (note the `-hf` suffix). The first run may download the configured VLM checkpoint unless `policy.vlm_model_name` points to a local model directory.
+EVO1 使用 Hugging Face 原生 `transformers` 的 InternVL 实现，因此 `policy.vlm_model_name` 必须指向原生转换的检查点，例如 `OpenGVLab/InternVL3-1B-hf`（注意 `-hf` 后缀）。首次运行可能会下载配置的 VLM 检查点，除非 `policy.vlm_model_name` 指向本地模型目录。
 
-## Data Requirements
+## 数据要求
 
-EVO1 expects a LeRobot dataset with:
+EVO1 期望的 LeRobot 数据集包含：
 
-- One to `policy.max_views` visual observations, for example `observation.images.image`
+- 1 到 `policy.max_views` 个视觉观测，例如 `observation.images.image`
 - `observation.state`
 - `action`
-- A language task instruction in the dataset `task` field, or another field configured with `policy.task_field`
+- 数据集 `task` 字段或其他通过 `policy.task_field` 配置的字段中的语言任务指令
 
-State and action vectors are padded to `policy.max_state_dim` and `policy.max_action_dim`. Predictions are cropped back to the dataset action dimension before being returned.
+状态和动作向量会被填充到 `policy.max_state_dim` 和 `policy.max_action_dim`。预测结果在返回之前裁剪回数据集动作维度。
 
-## Usage
+## 使用方法
 
-To use EVO1 in a LeRobot configuration, specify:
+要在 LeRobot 配置中使用 EVO1，指定：
 
 ```python
 policy.type=evo1
 ```
 
-By default, a new EVO1 policy initializes its VLM from:
+默认情况下，新的 EVO1 策略从其 VLM 初始化：
 
 ```python
 policy.vlm_model_name=OpenGVLab/InternVL3-1B-hf
 ```
 
-Once a LeRobot-format EVO1 checkpoint is available, load it with:
+一旦有了 LeRobot 格式的 EVO1 检查点，通过以下方式加载：
 
 ```python
 policy.path=your-org/your-evo1-checkpoint
 ```
 
-## Training
+## 训练
 
-### Stage 1
+### 阶段 1
 
-Stage 1 freezes the VLM and trains the action head:
+阶段 1 冻结 VLM，仅训练动作头：
 
 ```bash
 lerobot-train \
@@ -90,9 +90,9 @@ lerobot-train \
   --output_dir=./outputs/evo1_stage1
 ```
 
-### Stage 2
+### 阶段 2
 
-Stage 2 finetunes the VLM branches and action head. A common workflow starts from a Stage 1 checkpoint:
+阶段 2 微调 VLM 分支和动作头。常见的工作流从阶段 1 检查点开始：
 
 ```bash
 lerobot-train \
@@ -111,57 +111,48 @@ lerobot-train \
   --output_dir=./outputs/evo1_stage2
 ```
 
-By default, `policy.training_stage` reapplies the finetuning defaults for that stage. This is important when
-starting Stage 2 from a Stage 1 checkpoint, because the Stage 1 checkpoint config stores the VLM finetuning
-flags as disabled. These stage defaults take precedence over saved or manually supplied `policy.finetune_*`
-flags unless `policy.apply_training_stage_defaults=false`, so set that flag only when manually controlling
-every finetuning flag.
+默认情况下，`policy.training_stage` 会重新应用该阶段的微调默认值。从阶段 1 检查点开始阶段 2 时这一点很重要，因为阶段 1 检查点配置将 VLM 微调标志存储为禁用状态。这些阶段默认值优先于已保存或手动提供的 `policy.finetune_*` 标志，除非 `policy.apply_training_stage_defaults=false`，因此仅当你手动控制每个微调标志时才设置该标志。
 
-### Key Training Parameters
+### 关键训练参数
 
-| Parameter                                     | Default                     | Description                                                       |
-| --------------------------------------------- | --------------------------- | ----------------------------------------------------------------- |
-| `policy.vlm_model_name`                       | `OpenGVLab/InternVL3-1B-hf` | Natively converted InternVL3 checkpoint or local model directory  |
-| `policy.training_stage`                       | `stage1`                    | `stage1` trains the action head; `stage2` finetunes VLM branches  |
-| `policy.apply_training_stage_defaults`        | `true`                      | Reapplies stage finetuning defaults after loading a checkpoint    |
-| `policy.vlm_num_layers`                       | `14`                        | Number of InternVL3 language layers kept for the policy           |
-| `policy.vlm_dtype`                            | `bfloat16`                  | Requested VLM dtype                                               |
-| `policy.use_flash_attn`                       | `true`                      | Requests FlashAttention when installed; otherwise falls back      |
-| `policy.enable_gradient_checkpointing`        | `true`                      | Enables checkpointing on supported InternVL3 modules              |
-| `policy.gradient_checkpointing_use_reentrant` | `false`                     | Reentrant setting passed to gradient checkpointing when supported |
-| `policy.chunk_size`                           | `50`                        | Number of future actions predicted per chunk                      |
-| `policy.n_action_steps`                       | `50`                        | Number of actions consumed from a sampled chunk                   |
-| `policy.max_state_dim`                        | `24`                        | State padding dimension                                           |
-| `policy.max_action_dim`                       | `24`                        | Action padding dimension                                          |
-| `policy.postprocess_action_dim`               | `null`                      | Optional action dimension returned after EVO1 postprocessing      |
-| `policy.binarize_gripper`                     | `false`                     | Binarizes the postprocessed gripper channel for LIBERO-style eval |
-| `policy.task_field`                           | `task`                      | Batch field used as the language prompt                           |
+| 参数                                           | 默认值                         | 描述                                               |
+| ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
+| `policy.vlm_model_name`                        | `OpenGVLab/InternVL3-1B-hf`   | 原生转换的 InternVL3 检查点或本地模型目录          |
+| `policy.training_stage`                        | `stage1`                       | `stage1` 训练动作头；`stage2` 微调 VLM 分支         |
+| `policy.apply_training_stage_defaults`         | `true`                         | 加载检查点后重新应用阶段的微调默认值               |
+| `policy.vlm_num_layers`                        | `14`                           | 策略保留的 InternVL3 语言层数量                     |
+| `policy.vlm_dtype`                             | `bfloat16`                     | 请求的 VLM 数据类型                                  |
+| `policy.use_flash_attn`                        | `true`                         | 安装时请求 FlashAttention；否则回退                 |
+| `policy.enable_gradient_checkpointing`         | `true`                         | 在支持的 InternVL3 模块上启用检查点                  |
+| `policy.gradient_checkpointing_use_reentrant`  | `false`                        | 支持时传递给梯度检查点的 reentrant 设置              |
+| `policy.chunk_size`                            | `50`                           | 每个块预测的未来动作数量                             |
+| `policy.n_action_steps`                        | `50`                           | 从采样块中消费的动作数量                            |
+| `policy.max_state_dim`                         | `24`                           | 状态填充维度                                       |
+| `policy.max_action_dim`                        | `24`                           | 动作填充维度                                      |
+| `policy.postprocess_action_dim`                | `null`                         | EVO1 后处理后返回的可选动作维度                     |
+| `policy.binarize_gripper`                      | `false`                        | 对后处理的夹爪通道进行二值化，用于 LIBERO 风格评估 |
+| `policy.task_field`                            | `task`                         | 用作语言提示的批次字段                              |
 
-## Inference
+## 推理
 
-Try it out with a trained EVO1 checkpoint:
+使用训练好的 EVO1 检查点进行尝试：
 
 ```bash
 lerobot-rollout \
   --policy.path=your-org/your-evo1-checkpoint \
-  --inference.type=rtc \ # optional
+  --inference.type=rtc \ # 可选
   ...
 ```
 
-## Results
+## 结果
 
-### LIBERO Evaluation
+### LIBERO 评估
 
 > [!NOTE]
-> Benchmark results for a `lerobot`-hosted LIBERO checkpoint trained with this implementation
-> will be added once training completes.
+> 使用此实现训练、由 `lerobot` 托管的 LIBERO 检查点的基准测试结果
+> 将在训练完成后添加。
 
-The official EVO1 LIBERO rollout protocol uses the raw LIBERO camera feature names
-(`observation.images.agentview_image` and `observation.images.robot0_eye_in_hand_image`), replans every
-14 actions, and binarizes the gripper command before stepping the simulator. The EVO1 policy postprocessor
-can crop the padded 24D action back to the 7D LIBERO action space and apply that gripper binarization. To
-evaluate a LIBERO checkpoint under the same one-episode-per-task setting, keep the raw camera names instead
-of the default `image`/`image2` mapping and set the LIBERO action postprocessing flags:
+官方 EVO1 LIBERO 执行协议使用原始 LIBERO 相机特征名称（`observation.images.agentview_image` 和 `observation.images.robot0_eye_in_hand_image`），每 14 步动作重新规划一次，并在步进仿真器之前对夹爪命令进行二值化。EVO1 策略后处理器可以将填充后的 24 维动作裁剪回 7 维 LIBERO 动作空间，并应用该夹爪二值化。要在每任务一集的相同设置下评估 LIBERO 检查点，请保持原始相机名称而非默认的 `image`/`image2` 映射，并设置 LIBERO 动作后处理标志：
 
 ```bash
 lerobot-eval \
@@ -181,11 +172,11 @@ lerobot-eval \
   --eval.n_episodes=1
 ```
 
-## References
+## 参考文献
 
-- [EVO1 repository](https://github.com/MINT-SJTU/Evo-1)
+- [EVO1 仓库](https://github.com/MINT-SJTU/Evo-1)
 - [InternVL3-1B-hf](https://huggingface.co/OpenGVLab/InternVL3-1B-hf)
 
-## License
+## 许可协议
 
-This LeRobot integration follows the Apache 2.0 License used by LeRobot. Check the upstream EVO1 and InternVL3 model pages for the licenses of released checkpoints and data.
+此 LeRobot 集成遵循 LeRobot 使用的 Apache 2.0 许可协议。已发布的检查点和数据的许可协议请参阅上游 EVO1 和 InternVL3 模型页面。

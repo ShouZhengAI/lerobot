@@ -2,19 +2,19 @@
 
 <img
   src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/lerobot/unitree_thumbnail.jpg"
-  alt="Unitree G1 locomanipulation demo"
+  alt="Unitree G1 全身运动操控演示"
   style={{ width: "100%" }}
 />
 
-The Unitree G1 humanoid is now supported in LeRobot! You can teleoperate, train locomanipulation policies, test in sim, and more. Both 29 and 23 DoF variants are supported.
+Unitree G1 人形机器人现已在 LeRobot 中得到支持！你可以进行远程操控、训练全身运动操控策略、在仿真环境中测试等。支持 29 个自由度（DoF）和 23 个自由度两种型号。
 
 ---
 
-## Part 1: Getting Started
+## 第一部分：入门指南
 
-### Install the Unitree SDK
+### 安装 Unitree SDK
 
-Follow the [unitree_sdk2_python installation guide](https://github.com/unitreerobotics/unitree_sdk2_python#installation). Tested with `unitree_sdk2py==1.0.1` and `cyclonedds==0.10.2`:
+请遵循 [unitree_sdk2_python 安装指南](https://github.com/unitreerobotics/unitree_sdk2_python#installation)。已在 `unitree_sdk2py==1.0.1` 和 `cyclonedds==0.10.2` 上测试通过：
 
 ```bash
 conda create -y -n lerobot python=3.12
@@ -25,7 +25,7 @@ pip install -e .
 cd ..
 ```
 
-### Install LeRobot
+### 安装 LeRobot
 
 ```bash
 conda install ffmpeg -c conda-forge
@@ -36,13 +36,12 @@ pip install -e '.[unitree_g1]'
 ```
 
 <Tip>
-  For now, pinocchio must be installed from conda-forge (not pip) to include the
-  CasADi bindings needed for arm IK.
+  目前，pinocchio 必须通过 conda-forge（而非 pip）安装，以包含手臂逆运动学所需的 CasADi 绑定。
 </Tip>
 
-### Test the Installation (Simulation)
+### 测试安装（仿真环境）
 
-The simulation environment has its own dependencies. Check the Simulation environment dependencies: [Unitree G1 Mujoco EnvHub](https://huggingface.co/lerobot/unitree-g1-mujoco/tree/main).
+仿真环境有其自身的依赖项。查看仿真环境依赖项：[Unitree G1 Mujoco EnvHub](https://huggingface.co/lerobot/unitree-g1-mujoco/tree/main)。
 
 ```bash
 pip install mujoco loguru msgpack msgpack-numpy
@@ -59,58 +58,58 @@ lerobot-teleoperate \
   --robot.controller=GrootLocomotionController
 ```
 
-This will launch a [MuJoCo sim instance](https://huggingface.co/lerobot/unitree-g1-mujoco/tree/main) for the G1. You can connect a gamepad to your machine before launching in order to control the robot's locomotion in sim. We support both [HolosomaLocomotionController](https://github.com/amazon-far/holosoma) and [GrootLocomotionController](https://github.com/NVlabs/GR00T-WholeBodyControl) via `--robot.controller`.
+这将启动一个 G1 的 [MuJoCo 仿真实例](https://huggingface.co/lerobot/unitree-g1-mujoco/tree/main)。你可以在启动前将游戏手柄连接到机器，以便在仿真环境中控制机器人的运动。我们通过 `--robot.controller` 参数同时支持 [HolosomaLocomotionController](https://github.com/amazon-far/holosoma) 和 [GrootLocomotionController](https://github.com/NVlabs/GR00T-WholeBodyControl)。
 
-- Press `9` to release the robot
-- Press `7` / `8` to increase / decrease waist height
+- 按 `9` 释放机器人
+- 按 `7` / `8` 升高 / 降低腰部高度
 
-### Connect to the Physical Robot
+### 连接物理机器人
 
-The G1's Ethernet IP is fixed at `192.168.123.164`. Your machine must have a static IP on the same subnet: `192.168.123.x` where `x ≠ 164`.
+G1 的以太网 IP 固定为 `192.168.123.164`。你的机器必须在同一子网中设置静态 IP：`192.168.123.x`，其中 `x ≠ 164`。
 
 ```bash
-# Replace 'enp131s0' with your ethernet interface name (check with `ip a`)
+# 将 'enp131s0' 替换为你的以太网接口名称（使用 `ip a` 查看）
 sudo ip addr flush dev enp131s0
 sudo ip addr add 192.168.123.200/24 dev enp131s0
 sudo ip link set enp131s0 up
 ```
 
-### SSH into the Robot
+### SSH 登录机器人
 
 ```bash
 ssh unitree@192.168.123.164
-# Password: 123
+# 密码：123
 ```
 
-### Share Internet via Ethernet
+### 通过以太网共享网络
 
-The G1 needs internet access to clone repos and install packages. Share your laptop's connection over Ethernet:
+G1 需要互联网连接来克隆代码库和安装软件包。通过以太网共享笔记本电脑的网络连接：
 
-**On your laptop:**
+**在你的笔记本电脑上：**
 
 ```bash
 sudo sysctl -w net.ipv4.ip_forward=1
 
-# Replace wlp132s0f0 with your WiFi interface name
+# 将 wlp132s0f0 替换为你的 WiFi 接口名称
 sudo iptables -t nat -A POSTROUTING -o wlp132s0f0 -s 192.168.123.0/24 -j MASQUERADE
 sudo iptables -A FORWARD -i wlp132s0f0 -o enp131s0 -m state --state RELATED,ESTABLISHED -j ACCEPT
 sudo iptables -A FORWARD -i enp131s0 -o wlp132s0f0 -j ACCEPT
 ```
 
-**On the G1:**
+**在 G1 上：**
 
 ```bash
 sudo ip route del default 2>/dev/null || true
 sudo ip route add default via 192.168.123.200 dev eth0
 echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
 
-# Verify
+# 验证
 ping -c 3 8.8.8.8
 ```
 
-### Install the Unitree SDK on the G1
+### 在 G1 上安装 Unitree SDK
 
-Follow the [unitree_sdk2_python installation guide](https://github.com/unitreerobotics/unitree_sdk2_python#installation):
+请遵循 [unitree_sdk2_python 安装指南](https://github.com/unitreerobotics/unitree_sdk2_python#installation)：
 
 ```bash
 conda create -y -n lerobot python=3.12
@@ -121,7 +120,7 @@ python -m pip install -e .
 cd ..
 ```
 
-### Install LeRobot on the G1
+### 在 G1 上安装 LeRobot
 
 ```bash
 git clone https://github.com/huggingface/lerobot.git
@@ -131,13 +130,12 @@ python -m pip install -e '.[unitree_g1]'
 ```
 
 <Tip>
-  For now, pinocchio must be installed from conda-forge (not pip) to include the
-  CasADi bindings needed for arm IK.
+  目前，pinocchio 必须通过 conda-forge（而非 pip）安装，以包含手臂逆运动学所需的 CasADi 绑定。
 </Tip>
 
-### (Optional) Enable WiFi on the Robot
+### （可选）在机器人上启用 WiFi
 
-For wireless SSH access, you can enable WiFi on the G1 (it's blocked by default):
+如需无线 SSH 访问，你可以在 G1 上启用 WiFi（默认情况下被禁用）：
 
 ```bash
 sudo rfkill unblock all
@@ -147,7 +145,7 @@ sudo nmcli device set wlan0 managed yes
 sudo systemctl restart NetworkManager
 ```
 
-**Connect to a WiFi network:**
+**连接到 WiFi 网络：**
 
 ```bash
 nmcli device wifi list
@@ -161,31 +159,31 @@ sudo nmcli connection up "YourNetwork"
 ip a show wlan0
 ```
 
-You can then SSH over WiFi instead of Ethernet:
+之后你可以通过 WiFi 而非以太网进行 SSH：
 
 ```bash
 ssh unitree@<ROBOT_WIFI_IP>
-# Password: 123
+# 密码：123
 ```
 
 ---
 
-## Part 2: Teleoperation & Locomotion
+## 第二部分：远程操控与运动控制
 
-### Run the Robot Server
+### 运行机器人服务端
 
-On the robot (from `~/lerobot`):
+在机器人上（从 `~/lerobot` 目录）：
 
 ```bash
 cd ~/lerobot
 python src/lerobot/robots/unitree_g1/run_g1_server.py --camera
 ```
 
-### Run the Locomotion Policy
+### 运行运动控制策略
 
-You can run the teleoperation client from your laptop over Ethernet, over WiFi (experimental), or directly on the robot itself. Mind potential latency introduced by your network.
+你可以从笔记本电脑通过以太网、通过 WiFi（实验性）或者直接在机器人本身上运行远程操控客户端。请注意网络可能引入的延迟。
 
-**From your laptop:**
+**从你的笔记本电脑：**
 
 ```bash
 lerobot-teleoperate \
@@ -199,15 +197,15 @@ lerobot-teleoperate \
   --robot.controller=HolosomaLocomotionController
 ```
 
-We support both [GrootLocomotionController](https://github.com/NVlabs/GR00T-WholeBodyControl) and [HolosomaLocomotionController](https://github.com/amazon-far/holosoma) via `--robot.controller`.
+我们通过 `--robot.controller` 参数同时支持 [GrootLocomotionController](https://github.com/NVlabs/GR00T-WholeBodyControl) 和 [HolosomaLocomotionController](https://github.com/amazon-far/holosoma)。
 
 ---
 
-## Part 3: Loco-Manipulation with the Homunculus Exoskeleton
+## 第三部分：使用 Homunculus 外骨骼进行全身运动操控
 
-We provide a loco-manipulation solution via the Homunculus Exoskeleton — an open-source 7 DoF exoskeleton for whole-body control. Check it out [here](https://github.com/nepyope/hmc_exo).
+我们通过 Homunculus Exoskeleton（一种用于全身控制的开源 7 自由度外骨骼）提供全身运动操控解决方案。详情请点击[此处](https://github.com/nepyope/hmc_exo)查看。
 
-### Calibrate
+### 标定
 
 ```bash
 lerobot-calibrate \
@@ -217,9 +215,9 @@ lerobot-calibrate \
   --teleop.id=exo
 ```
 
-During calibration move each joint through its entire range. After fitting, move the joint in a neutral position and press `n` to advance.
+标定过程中，请将每个关节移动至其全部活动范围。拟合完成后，将关节移至中立位置并按下 `n` 继续。
 
-### Record a Dataset
+### 录制数据集
 
 ```bash
 lerobot-record \
@@ -240,15 +238,15 @@ lerobot-record \
   --dataset.encoder_threads=2
 ```
 
-> **Note:** Omit `--teleop.left_arm_config.port` and `--teleop.right_arm_config.port` if you're only using the joystick.
+> **注意：** 如果仅使用操纵杆，请省略 `--teleop.left_arm_config.port` 和 `--teleop.right_arm_config.port`。
 
-Example dataset: [nepyope/unitree_box_move_blue_full](https://huggingface.co/datasets/nepyope/unitree_box_move_blue_full)
+示例数据集：[nepyope/unitree_box_move_blue_full](https://huggingface.co/datasets/nepyope/unitree_box_move_blue_full)
 
 ---
 
-## Part 4: Training & Inference
+## 第四部分：训练与推理
 
-### Train
+### 训练
 
 ```bash
 python src/lerobot/scripts/lerobot_train.py \
@@ -269,9 +267,9 @@ python src/lerobot/scripts/lerobot_train.py \
   --batch_size=32
 ```
 
-### Inference with RTC
+### 使用 RTC 进行推理
 
-Once trained, we recommend deploying policies using inference-time RTC:
+训练完成后，我们建议使用推理时 RTC（Run-Time Compilation，运行时编译）来部署策略：
 
 ```bash
 lerobot-rollout \
@@ -290,14 +288,14 @@ lerobot-rollout \
 
 ---
 
-## Additional Resources
+## 更多资源
 
-- [Unitree SDK Documentation](https://github.com/unitreerobotics/unitree_sdk2_python)
+- [Unitree SDK 文档](https://github.com/unitreerobotics/unitree_sdk2_python)
 - [GR00T-WholeBodyControl](https://github.com/NVlabs/GR00T-WholeBodyControl)
 - [Holosoma](https://github.com/amazon-far/holosoma)
-- [LeRobot Documentation](https://github.com/huggingface/lerobot)
+- [LeRobot 文档](https://github.com/huggingface/lerobot)
 - [Unitree IL LeRobot](https://github.com/unitreerobotics/unitree_IL_lerobot)
 
 ---
 
-_Last updated: March 2026_
+_最后更新：2026 年 3 月_
